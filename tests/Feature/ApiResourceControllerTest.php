@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\License;
 use App\Models\Post;
 use App\Models\Tag;
 use App\Models\User;
@@ -120,4 +121,33 @@ test('tag controller stores updates and deletes a tag', function () {
 
     $this->deleteJson("/api/tags/{$tag->id}")->assertNoContent();
     $this->assertDatabaseMissing('tags', ['id' => $tag->id]);
+});
+
+test('license controller stores updates and deletes a license', function () {
+    $user = User::factory()->create();
+
+    $response = $this->postJson('/api/licenses', [
+        'user_id' => $user->id,
+        'code' => 'APICO-TEST-0001',
+        'is_active' => true,
+        'expires_at' => now()->addYear()->toDateTimeString(),
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.code', 'APICO-TEST-0001')
+        ->assertJsonPath('data.user.id', $user->id)
+        ->assertJsonPath('data.is_active', true);
+
+    $license = License::where('code', 'APICO-TEST-0001')->firstOrFail();
+
+    $this->patchJson("/api/licenses/{$license->id}", [
+        'is_active' => false,
+        'used_at' => now()->toDateTimeString(),
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.code', 'APICO-TEST-0001')
+        ->assertJsonPath('data.is_active', false);
+
+    $this->deleteJson("/api/licenses/{$license->id}")->assertNoContent();
+    $this->assertDatabaseMissing('licenses', ['id' => $license->id]);
 });

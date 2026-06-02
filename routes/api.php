@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\TagController;
 use Illuminate\Http\Request;
@@ -13,3 +14,4 @@ Route::get('/user', function (Request $request) {
 Route::apiResource('posts', PostController::class);
 Route::apiResource('categories', CategoryController::class);
 Route::apiResource('tags', TagController::class);
+Route::apiResource('licenses', LicenseController::class);
