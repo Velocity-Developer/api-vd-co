@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import type { FormError, FormSubmitEvent, TableColumn } from '@nuxt/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { licences as licencesRoute } from '@/routes';
+import { licenses } from '@/routes';
 
 type LicenseUser = {
     id: number;
@@ -74,8 +74,8 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Licences',
-                href: licencesRoute(),
+                title: 'Licenses',
+                href: licenses(),
             },
         ],
     },

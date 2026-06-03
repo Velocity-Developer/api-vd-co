@@ -10,7 +10,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('posts', 'Posts')->name('posts');
     Route::inertia('categories', 'Categories')->name('categories');
     Route::inertia('tags', 'Tags')->name('tags');
-    Route::inertia('licences', 'Licences')->name('licences');
+    Route::inertia('licenses', 'Licenses')->name('licenses');
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';
