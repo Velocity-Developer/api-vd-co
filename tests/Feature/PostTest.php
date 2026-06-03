@@ -3,6 +3,7 @@
 use App\Models\Post;
 use App\Models\User;
 use Database\Seeders\PostSeeder;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,10 +48,15 @@ test('image path is mass assignable', function () {
 });
 
 test('post seeder creates posts for seeded users once', function () {
+    Http::fake([
+        'picsum.photos/*' => Http::response('fake picsum image', 200, [
+            'Content-Type' => 'image/jpeg',
+        ]),
+    ]);
     Storage::fake('public');
 
     $admin = User::factory()->create(['email' => 'admin@example.com']);
-    $testUser = User::factory()->create(['email' => 'test@example.com']);
+    $testUser = User::factory()->create(['email' => 'usertest@example.com']);
 
     $this->seed(PostSeeder::class);
     $this->seed(PostSeeder::class);
@@ -65,4 +71,6 @@ test('post seeder creates posts for seeded users once', function () {
     Post::query()
         ->pluck('image')
         ->each(fn (string $image): mixed => Storage::disk('public')->assertExists($image));
+
+    Http::assertSentCount(10);
 });
