@@ -3,6 +3,7 @@
 use App\Models\License;
 use App\Models\RequestLog;
 use App\Models\Website;
+use Database\Seeders\RequestLogSeeder;
 use Illuminate\Support\Facades\Schema;
 
 test('request logs table has the expected columns', function () {
@@ -42,4 +43,14 @@ test('a request log belongs to a website and license', function () {
         ->toBe(['license_key' => 'APICO-TEST-LICENSE'])
         ->and($requestLog->status)
         ->toBe(200);
+});
+
+test('request log seeder creates request logs once', function () {
+    $this->seed(RequestLogSeeder::class);
+    $this->seed(RequestLogSeeder::class);
+
+    expect(RequestLog::count())->toBe(3)
+        ->and(RequestLog::where('route', '/api/validate-license')->count())->toBe(2)
+        ->and(RequestLog::where('route', '/api/check-update')->count())->toBe(1)
+        ->and(RequestLog::where('status', 403)->count())->toBe(1);
 });

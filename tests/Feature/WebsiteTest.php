@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Website;
+use Database\Seeders\WebsiteSeeder;
 use Illuminate\Support\Facades\Schema;
 
 test('websites table has the expected columns', function () {
@@ -40,4 +41,14 @@ test('a website can be created with version details', function () {
         ->plugin_version->toBe('4.5.6')
         ->wp_version->toBe('6.5.4')
         ->php_version->toBe('8.3');
+});
+
+test('website seeder creates websites once', function () {
+    $this->seed(WebsiteSeeder::class);
+    $this->seed(WebsiteSeeder::class);
+
+    expect(Website::count())->toBe(3)
+        ->and(Website::where('domain', 'apico-demo.test')->exists())->toBeTrue()
+        ->and(Website::where('status', 'active')->count())->toBe(2)
+        ->and(Website::where('status', 'invalid')->count())->toBe(1);
 });
