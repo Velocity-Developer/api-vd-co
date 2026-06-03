@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\License;
 use App\Models\Post;
+use App\Models\RequestLog;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Website;
@@ -182,4 +183,37 @@ test('website controller stores updates and deletes a website', function () {
 
     $this->deleteJson("/api/websites/{$website->id}")->assertNoContent();
     $this->assertDatabaseMissing('websites', ['id' => $website->id]);
+});
+
+test('request log controller stores updates and deletes a request log', function () {
+    $website = Website::factory()->create();
+    $license = License::factory()->create();
+
+    $response = $this->postJson('/api/request-logs', [
+        'route' => '/api/validate-license',
+        'method' => 'POST',
+        'request' => ['license_key' => $license->code],
+        'status' => 200,
+        'website_id' => $website->id,
+        'license_id' => $license->id,
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.route', '/api/validate-license')
+        ->assertJsonPath('data.status', 200)
+        ->assertJsonPath('data.website.id', $website->id)
+        ->assertJsonPath('data.license.id', $license->id);
+
+    $requestLog = RequestLog::where('route', '/api/validate-license')->firstOrFail();
+
+    $this->patchJson("/api/request-logs/{$requestLog->id}", [
+        'status' => 403,
+        'request' => ['error' => 'invalid_license'],
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.status', 403)
+        ->assertJsonPath('data.request.error', 'invalid_license');
+
+    $this->deleteJson("/api/request-logs/{$requestLog->id}")->assertNoContent();
+    $this->assertDatabaseMissing('request_logs', ['id' => $requestLog->id]);
 });
