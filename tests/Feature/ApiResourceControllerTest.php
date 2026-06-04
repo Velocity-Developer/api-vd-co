@@ -23,6 +23,7 @@ test('post controller stores a post with category and tag pivots', function () {
         'title' => 'Getting Started With APIs',
         'slug' => 'getting-started-with-apis',
         'image' => $image,
+        'image_caption' => 'API article cover image.',
         'excerpt' => 'A short API intro.',
         'content' => 'Complete API article content.',
         'published_at' => now()->toDateTimeString(),
@@ -32,6 +33,7 @@ test('post controller stores a post with category and tag pivots', function () {
 
     $response->assertCreated()
         ->assertJsonPath('data.title', 'Getting Started With APIs')
+        ->assertJsonPath('data.image_caption', 'API article cover image.')
         ->assertJsonPath('data.categories.0.id', $category->id)
         ->assertJsonPath('data.tags.0.id', $tag->id);
 
@@ -56,11 +58,13 @@ test('post controller updates and deletes a post', function () {
 
     $this->patch("/api/posts/{$post->id}", [
         'title' => 'Updated Post Title',
+        'image_caption' => 'Updated cover caption.',
         'image' => $newImage,
         'category_ids' => [$category->id],
     ])
         ->assertOk()
         ->assertJsonPath('data.title', 'Updated Post Title')
+        ->assertJsonPath('data.image_caption', 'Updated cover caption.')
         ->assertJsonPath('data.categories.0.id', $category->id);
 
     $post->refresh();

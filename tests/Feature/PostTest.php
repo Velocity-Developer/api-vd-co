@@ -14,6 +14,7 @@ test('posts table has the expected columns', function () {
         'title',
         'slug',
         'image',
+        'image_caption',
         'excerpt',
         'content',
         'published_at',
@@ -39,12 +40,14 @@ test('published at is cast to datetime', function () {
     expect($post->published_at)->toBeInstanceOf(DateTimeInterface::class);
 });
 
-test('image path is mass assignable', function () {
+test('image fields are mass assignable', function () {
     $post = Post::factory()->create([
         'image' => 'posts/example.jpg',
+        'image_caption' => 'Example image caption.',
     ]);
 
-    expect($post->image)->toBe('posts/example.jpg');
+    expect($post->image)->toBe('posts/example.jpg')
+        ->and($post->image_caption)->toBe('Example image caption.');
 });
 
 test('post seeder creates posts for seeded users once', function () {

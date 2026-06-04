@@ -23,6 +23,7 @@ type Post = {
     title: string;
     slug: string;
     image: string | null;
+    image_caption: string | null;
     excerpt: string | null;
     content: string;
     published_at: string | null;
@@ -111,6 +112,7 @@ const filteredPosts = computed(() => {
     return postsData.value.filter((post) => {
         const searchableContent = [
             post.title,
+            post.image_caption,
             post.excerpt,
             post.slug,
             post.user?.name,

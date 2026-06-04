@@ -17,6 +17,7 @@ type Post = {
     title: string;
     slug: string;
     image: string | null;
+    image_caption: string | null;
     excerpt: string | null;
     content: string;
     published_at: string | null;
@@ -44,6 +45,7 @@ type TagOption = SelectOption & {
 type PostFormState = {
     title: string;
     slug: string;
+    image_caption: string;
     excerpt: string;
     content: string;
     published_at: string;
@@ -78,6 +80,7 @@ const currentUserId = computed(() => Number(page.props.auth.user.id));
 const state = reactive<PostFormState>({
     title: '',
     slug: '',
+    image_caption: '',
     excerpt: '',
     content: '',
     published_at: '',
@@ -288,6 +291,7 @@ const fieldError = (name: string): string | undefined => {
 const resetForm = (): void => {
     state.title = '';
     state.slug = '';
+    state.image_caption = '';
     state.excerpt = '';
     state.content = '';
     state.published_at = '';
@@ -303,6 +307,7 @@ const resetForm = (): void => {
 const fillForm = (postData: Post): void => {
     state.title = postData.title;
     state.slug = postData.slug;
+    state.image_caption = postData.image_caption ?? '';
     state.excerpt = postData.excerpt ?? '';
     state.content = postData.content;
     state.published_at = formatDateTimeLocal(postData.published_at);
@@ -399,6 +404,7 @@ const buildPayload = (): Record<string, unknown> => ({
     user_id: currentUserId.value,
     title: state.title,
     slug: state.slug,
+    image_caption: state.image_caption,
     excerpt: state.excerpt,
     content: state.content,
     published_at: state.published_at,
@@ -416,6 +422,7 @@ const buildFormData = (method?: 'PATCH'): FormData => {
     formData.append('user_id', String(currentUserId.value));
     formData.append('title', state.title);
     formData.append('slug', state.slug);
+    formData.append('image_caption', state.image_caption);
     formData.append('excerpt', state.excerpt);
     formData.append('content', state.content);
     formData.append('published_at', state.published_at);
@@ -713,6 +720,22 @@ onMounted(async () => {
                             @change="selectImage"
                         />
                     </div>
+                </UFormField>
+
+                <UFormField
+                    name="image_caption"
+                    label="Image caption"
+                    hint="Optional"
+                    :error="fieldError('image_caption')"
+                >
+                    <UTextarea
+                        v-model="state.image_caption"
+                        placeholder="Caption for the featured image"
+                        :rows="2"
+                        autoresize
+                        :disabled="isSaving"
+                        class="w-full"
+                    />
                 </UFormField>
 
                 <UFormField

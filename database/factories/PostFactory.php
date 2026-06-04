@@ -26,6 +26,7 @@ class PostFactory extends Factory
             'title' => $title,
             'slug' => Str::slug($title).'-'.fake()->unique()->numberBetween(1000, 9999),
             'image' => 'posts/'.fake()->uuid().'.jpg',
+            'image_caption' => fake()->sentence(),
             'excerpt' => fake()->paragraph(),
             'content' => fake()->paragraphs(4, true),
             'published_at' => fake()->optional()->dateTimeBetween('-1 year'),
