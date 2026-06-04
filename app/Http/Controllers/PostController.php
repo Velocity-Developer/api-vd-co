@@ -67,6 +67,28 @@ class PostController extends Controller
     }
 
     /**
+     * Display public post cards.
+     */
+    public function publicIndex(): View
+    {
+        $posts = Post::query()
+            ->with(['user:id,name,email', 'categories:id,name,slug', 'tags:id,name,slug'])
+            ->latest()
+            ->paginate(9);
+
+        $imageUrls = $posts
+            ->getCollection()
+            ->mapWithKeys(fn (Post $post): array => [
+                $post->id => $this->imageUrl($post->image),
+            ]);
+
+        return view('posts.index', [
+            'posts' => $posts,
+            'imageUrls' => $imageUrls,
+        ]);
+    }
+
+    /**
      * Display a public post page by slug.
      */
     public function read(string $slug): View
@@ -76,15 +98,9 @@ class PostController extends Controller
             ->where('slug', $slug)
             ->firstOrFail();
 
-        $imageUrl = match (true) {
-            $post->image === null => null,
-            str_starts_with($post->image, 'http') => $post->image,
-            default => Storage::disk('public')->url($post->image),
-        };
-
         return view('posts.read', [
             'post' => $post,
-            'imageUrl' => $imageUrl,
+            'imageUrl' => $this->imageUrl($post->image),
         ]);
     }
 
@@ -149,5 +165,14 @@ class PostController extends Controller
         }
 
         Storage::disk('public')->delete($post->image);
+    }
+
+    private function imageUrl(?string $image): ?string
+    {
+        return match (true) {
+            $image === null => null,
+            str_starts_with($image, 'http') => $image,
+            default => Storage::disk('public')->url($image),
+        };
     }
 }

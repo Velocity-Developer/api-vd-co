@@ -74,6 +74,25 @@ test('read route returns not found for an unknown slug', function () {
     $this->get(route('read', 'missing-post'))->assertNotFound();
 });
 
+test('public posts route renders post cards with the frontend layout', function () {
+    $post = Post::factory()->create([
+        'title' => 'Card Post Title',
+        'slug' => 'card-post-title',
+        'image' => null,
+        'excerpt' => 'Card post excerpt.',
+        'published_at' => now(),
+    ]);
+
+    $this->get('/posts')
+        ->assertOk()
+        ->assertViewIs('posts.index')
+        ->assertViewHas('posts')
+        ->assertSee('Latest Posts')
+        ->assertSee('Card Post Title')
+        ->assertSee('Card post excerpt.')
+        ->assertSee(route('read', $post->slug), false);
+});
+
 test('post seeder creates posts for seeded users once', function () {
     Http::fake([
         'picsum.photos/*' => Http::response('fake picsum image', 200, [

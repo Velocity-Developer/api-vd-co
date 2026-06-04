@@ -4,6 +4,7 @@ use App\Http\Controllers\PostController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
+Route::get('posts', [PostController::class, 'publicIndex'])->name('frontend.posts');
 Route::get('read/{slug}', [PostController::class, 'read'])->name('read');
 
 Route::middleware(['auth', 'verified'])->group(function () {
