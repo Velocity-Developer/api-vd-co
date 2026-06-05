@@ -15,6 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/tags', 'Tags')->name('tags');
     Route::inertia('admin/licenses', 'Licenses')->name('licenses');
     Route::inertia('admin/websites', 'Websites')->name('websites');
+    Route::inertia('admin/request-logs', 'RequestLogs')->name('requestlogs');
 });
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

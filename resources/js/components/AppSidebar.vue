@@ -20,6 +20,7 @@ import {
     tags,
     licenses,
     websites,
+    requestlogs,
 } from '@/routes';
 import {
     FileText,
@@ -30,6 +31,7 @@ import {
     Tag,
     Key,
     Globe,
+    ScrollText
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -63,6 +65,11 @@ const mainNavItems: NavItem[] = [
         title: 'Websites',
         href: websites(),
         icon: Globe,
+    },
+    {
+        title: 'Request Logs',
+        href: requestlogs(),
+        icon: ScrollText,
     },
 ];
 
