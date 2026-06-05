@@ -9,6 +9,7 @@ const packageRoot = join(dist, 'package');
 const laravelRoot = join(packageRoot, 'laravel');
 const publicHtmlRoot = join(packageRoot, 'public_html');
 const zipPath = join(dist, 'apico-production-update.zip');
+const includeVendor = parseIncludeVendorOption();
 
 const laravelEntries = [
     'app',
@@ -19,7 +20,6 @@ const laravelEntries = [
     'resources',
     'routes',
     'storage',
-    'vendor',
     'artisan',
     'composer.json',
     'composer.lock',
@@ -28,6 +28,20 @@ const laravelEntries = [
 const publicExcludes = new Set(['hot', 'storage', 'fonts-manifest.dev.json']);
 const databaseExcludes = new Set(['database.sqlite']);
 const bootstrapCacheKeeps = new Set(['.gitignore']);
+
+function parseIncludeVendorOption() {
+    const args = process.argv.slice(2);
+
+    if (args.includes('--with-vendor')) {
+        return true;
+    }
+
+    if (args.includes('--no-vendor') || args.includes('--without-vendor')) {
+        return false;
+    }
+
+    return true;
+}
 
 function shouldSkip(sourcePath, relativePath) {
     const normalizedPath = relativePath.replaceAll('\\', '/');
@@ -93,22 +107,17 @@ function rewritePublicIndex() {
 
 function zipPackage() {
     rmSync(zipPath, { force: true });
-    const quotePowerShellString = (value) => `'${value.replaceAll("'", "''")}'`;
 
     execFileSync(
-        'powershell.exe',
+        'tar.exe',
         [
-            '-NoProfile',
-            '-Command',
-            [
-                'Compress-Archive -LiteralPath @(',
-                quotePowerShellString(join(packageRoot, 'laravel')),
-                ', ',
-                quotePowerShellString(join(packageRoot, 'public_html')),
-                ') -DestinationPath ',
-                quotePowerShellString(zipPath),
-                ' -Force',
-            ].join(''),
+            '-a',
+            '-cf',
+            zipPath,
+            '-C',
+            packageRoot,
+            'laravel',
+            'public_html',
         ],
         { stdio: 'inherit' },
     );
@@ -120,6 +129,10 @@ mkdirSync(publicHtmlRoot, { recursive: true });
 
 for (const entry of laravelEntries) {
     copyEntry(join(root, entry), join(laravelRoot, entry), entry);
+}
+
+if (includeVendor) {
+    copyEntry(join(root, 'vendor'), join(laravelRoot, 'vendor'), 'vendor');
 }
 
 for (const entry of readdirSync(join(root, 'public'))) {
@@ -134,3 +147,4 @@ rewritePublicIndex();
 zipPackage();
 
 console.log(`Deploy package created: ${zipPath}`);
+console.log(`Vendor included: ${includeVendor ? 'yes' : 'no'}`);
