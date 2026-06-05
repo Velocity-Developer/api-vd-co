@@ -26,6 +26,7 @@ const laravelEntries = [
 ];
 
 const publicExcludes = new Set(['hot', 'storage', 'fonts-manifest.dev.json']);
+const publicHtmlExcludes = new Set([...publicExcludes, 'index.php']);
 const databaseExcludes = new Set(['database.sqlite']);
 const bootstrapCacheKeeps = new Set(['.gitignore']);
 
@@ -95,16 +96,6 @@ function copyEntry(sourcePath, destinationPath, relativePath = '') {
     writeFileSync(destinationPath, readFileSync(sourcePath));
 }
 
-function rewritePublicIndex() {
-    const indexPath = join(publicHtmlRoot, 'index.php');
-    const indexContent = readFileSync(indexPath, 'utf8')
-        .replace("__DIR__.'/../storage/framework/maintenance.php'", "__DIR__.'/../laravel/storage/framework/maintenance.php'")
-        .replace("__DIR__.'/../vendor/autoload.php'", "__DIR__.'/../laravel/vendor/autoload.php'")
-        .replace("__DIR__.'/../bootstrap/app.php'", "__DIR__.'/../laravel/bootstrap/app.php'");
-
-    writeFileSync(indexPath, indexContent);
-}
-
 function zipPackage() {
     rmSync(zipPath, { force: true });
 
@@ -136,14 +127,13 @@ if (includeVendor) {
 }
 
 for (const entry of readdirSync(join(root, 'public'))) {
-    if (publicExcludes.has(entry)) {
+    if (publicHtmlExcludes.has(entry)) {
         continue;
     }
 
     copyEntry(join(root, 'public', entry), join(publicHtmlRoot, entry), entry);
 }
 
-rewritePublicIndex();
 zipPackage();
 
 console.log(`Deploy package created: ${zipPath}`);
