@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\RequestLogController;
+use App\Http\Controllers\TagController;
+use App\Http\Controllers\WebsiteController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -16,6 +21,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/licenses', 'Licenses')->name('licenses');
     Route::inertia('admin/websites', 'Websites')->name('websites');
     Route::inertia('admin/request-logs', 'RequestLogs')->name('requestlogs');
+});
+
+Route::middleware(['auth'])->prefix('ajax')->group(function () {
+    Route::apiResources([
+        'posts' => PostController::class,
+        'categories' => CategoryController::class,
+        'tags' => TagController::class,
+        'licenses' => LicenseController::class,
+        'websites' => WebsiteController::class,
+        'request-logs' => RequestLogController::class,
+    ]);
 });
 
 require __DIR__ . '/settings.php';
