@@ -20,7 +20,7 @@ import {
     tags,
     licenses,
     websites,
-    requestlogs,
+    requestlogsIndex,
 } from '@/routes';
 import {
     FileText,
@@ -68,7 +68,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Request Logs',
-        href: requestlogs(),
+        href: requestlogsIndex(),
         icon: ScrollText,
     },
 ];

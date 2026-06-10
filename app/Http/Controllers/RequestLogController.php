@@ -7,20 +7,24 @@ use App\Models\RequestLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Inertia\Inertia;
 
 class RequestLogController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(): AnonymousResourceCollection
+    public function index()
     {
-        return RequestLogResource::collection(
+        $requestLogs = RequestLogResource::collection(
             RequestLog::query()
                 ->with(['website:id,domain,status', 'license:id,code,is_active'])
                 ->latest()
                 ->paginate(),
         );
+        return Inertia::render('RequestLogs', [
+            'requestLogs' => $requestLogs
+        ]);
     }
 
     /**
