@@ -13,9 +13,13 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::apiResource('posts', PostController::class);
-Route::apiResource('categories', CategoryController::class);
-Route::apiResource('tags', TagController::class);
-Route::apiResource('licenses', LicenseController::class);
-Route::apiResource('websites', WebsiteController::class);
-Route::apiResource('request-logs', RequestLogController::class);
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::apiResources([
+        'posts' => PostController::class,
+        'categories' => CategoryController::class,
+        'tags' => TagController::class,
+        'licenses' => LicenseController::class,
+        'websites' => WebsiteController::class,
+        'request-logs' => RequestLogController::class,
+    ]);
+});
