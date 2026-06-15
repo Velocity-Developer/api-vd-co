@@ -39,6 +39,11 @@ class PostResource extends JsonResource
                 fn(): string => $this->categories->pluck('name')->implode(', '),
                 '',
             ),
+            'category_id' => $this->whenLoaded(
+                'categories',
+                fn(): string => $this->categories->pluck('id')->implode(', '),
+                '',
+            ),
             'published_at' => $this->published_at,
             'user' => $this->whenLoaded('user'),
             'categories' => CategoryResource::collection($this->whenLoaded('categories')),
