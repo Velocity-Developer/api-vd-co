@@ -27,4 +27,5 @@ Route::middleware(['auth'])->group(function () {
 
 Route::middleware(['license'])->prefix('v1')->group(function () {
     Route::get('/news/categories', [NewsController::class, 'categories']);
+    Route::get('/news/posts', [NewsController::class, 'posts']);
 });

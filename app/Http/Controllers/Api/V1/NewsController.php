@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PostResource;
 use App\Models\Category;
+use App\Models\Post;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class NewsController extends Controller
 {
@@ -26,6 +30,38 @@ class NewsController extends Controller
             'status' => true,
             'message' => 'Success',
             'data' => $categories,
+        ]);
+    }
+
+    public function posts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'post_per_page' => ['nullable', 'integer', 'between:1,100'],
+        ]);
+
+        $posts = Post::query()
+            ->with(['user:id,name,email', 'categories:id,name,slug', 'tags:id,name,slug'])
+            ->when(
+                isset($validated['category_id']),
+                fn (Builder $query): Builder => $query->whereHas(
+                    'categories',
+                    fn (Builder $categoryQuery): Builder => $categoryQuery->whereKey($validated['category_id']),
+                ),
+            )
+            ->latest()
+            ->paginate($validated['post_per_page'] ?? 10);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Success',
+            'data' => PostResource::collection($posts->items())->resolve($request),
+            'pagination' => [
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'per_page' => $posts->perPage(),
+                'total' => $posts->total(),
+            ],
         ]);
     }
 }
