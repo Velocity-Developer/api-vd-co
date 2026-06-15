@@ -79,9 +79,17 @@ class EnsureLicenseKey
         ?License $license = null,
         string $licenseKey = '',
     ): void {
-        $website = $licenseKey === ''
+        $source = trim((string) $request->header('source', ''));
+        $website = $source === ''
             ? null
-            : Website::query()->where('license_key', $licenseKey)->first();
+            : Website::query()->firstOrCreate(
+                ['domain' => $source],
+                [
+                    'ip_address' => $request->ip(),
+                    'license_key' => $licenseKey,
+                    'status' => $license instanceof License ? 'active' : 'invalid',
+                ],
+            );
 
         RequestLog::create([
             'route' => $request->getPathInfo(),

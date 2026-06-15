@@ -66,21 +66,47 @@ test('api requests accept active license keys', function () {
         'expires_at' => now()->addDay(),
     ]);
     $website = Website::factory()->create([
+        'domain' => 'existing.example.com',
         'license_key' => $license->code,
     ]);
 
-    $this->withHeader('License', $license->code)
-        ->getJson('/api/v1/news/categories?source=wordpress')
+    $this->withHeaders([
+        'License' => $license->code,
+        'source' => $website->domain,
+    ])
+        ->getJson('/api/v1/news/categories?type=wordpress')
         ->assertOk();
 
     $requestLog = RequestLog::sole();
 
     expect($requestLog->route)->toBe('/api/v1/news/categories')
         ->and($requestLog->method)->toBe('GET')
-        ->and($requestLog->request)->toBe(['source' => 'wordpress'])
+        ->and($requestLog->request)->toBe(['type' => 'wordpress'])
         ->and($requestLog->status)->toBe(200)
         ->and($requestLog->website_id)->toBe($website->id)
         ->and($requestLog->license_id)->toBe($license->id);
+});
+
+test('api requests create websites from the source header', function () {
+    $license = License::factory()->create([
+        'expires_at' => now()->addDay(),
+    ]);
+
+    foreach (['first.example.com', 'second.example.com'] as $source) {
+        $this->withHeaders([
+            'License' => $license->code,
+            'source' => $source,
+        ])->getJson('/api/v1/news/categories')->assertOk();
+    }
+
+    $firstWebsite = Website::where('domain', 'first.example.com')->sole();
+    $secondWebsite = Website::where('domain', 'second.example.com')->sole();
+
+    expect(Website::count())->toBe(2)
+        ->and($firstWebsite->license_key)->toBe($license->code)
+        ->and($secondWebsite->license_key)->toBe($license->code)
+        ->and(RequestLog::where('website_id', $firstWebsite->id)->count())->toBe(1)
+        ->and(RequestLog::where('website_id', $secondWebsite->id)->count())->toBe(1);
 });
 
 test('api requests are logged when the endpoint throws an exception', function () {
