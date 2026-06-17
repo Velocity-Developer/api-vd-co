@@ -4,7 +4,19 @@ declare(strict_types=1);
 
 session_start();
 
-$basePath = dirname(__DIR__);
+function admintoolResolveBasePath(string $currentDirectory): string
+{
+    $defaultBasePath = dirname($currentDirectory);
+    $siblingLaravelPath = $defaultBasePath.DIRECTORY_SEPARATOR.'laravel';
+
+    if (basename($currentDirectory) === 'public_html' && is_dir($siblingLaravelPath)) {
+        return $siblingLaravelPath;
+    }
+
+    return $defaultBasePath;
+}
+
+$basePath = admintoolResolveBasePath(__DIR__);
 $artisanPath = $basePath.DIRECTORY_SEPARATOR.'artisan';
 $envPath = $basePath.DIRECTORY_SEPARATOR.'.env';
 
@@ -56,37 +68,100 @@ function admintoolReadEnv(string $path): array
  * @param  list<string>  $arguments
  * @return array{exit_code: int, output: string}
  */
+function admintoolFunctionAvailable(string $functionName): bool
+{
+    if (! function_exists($functionName)) {
+        return false;
+    }
+
+    $disabledFunctions = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+
+    return ! in_array($functionName, $disabledFunctions, true);
+}
+
+/**
+ * @param  list<string>  $command
+ */
+function admintoolBuildShellCommand(array $command): string
+{
+    return implode(' ', array_map('escapeshellarg', $command));
+}
+
+/**
+ * @param  list<string>  $arguments
+ * @return array{exit_code: int, output: string}
+ */
 function admintoolRunArtisan(string $phpBinary, string $artisanPath, array $arguments): array
 {
     $command = array_merge([$phpBinary, $artisanPath], $arguments);
-    $descriptorSpec = [
-        0 => ['pipe', 'r'],
-        1 => ['pipe', 'w'],
-        2 => ['pipe', 'w'],
-    ];
+    $workingDirectory = dirname($artisanPath);
 
-    $process = proc_open($command, $descriptorSpec, $pipes, dirname($artisanPath));
+    if (admintoolFunctionAvailable('proc_open')) {
+        $descriptorSpec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
 
-    if (! is_resource($process)) {
+        $process = proc_open($command, $descriptorSpec, $pipes, $workingDirectory);
+
+        if (is_resource($process)) {
+            fclose($pipes[0]);
+
+            $output = stream_get_contents($pipes[1]);
+            $errorOutput = stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $exitCode = proc_close($process);
+
+            return [
+                'exit_code' => $exitCode,
+                'output' => trim((string) $output.PHP_EOL.(string) $errorOutput),
+            ];
+        }
+    }
+
+    $shellCommand = admintoolBuildShellCommand($command);
+
+    if (admintoolFunctionAvailable('exec')) {
+        $currentDirectory = getcwd();
+        $outputLines = [];
+        $exitCode = 1;
+
+        chdir($workingDirectory);
+        exec($shellCommand.' 2>&1', $outputLines, $exitCode);
+
+        if ($currentDirectory !== false) {
+            chdir($currentDirectory);
+        }
+
         return [
-            'exit_code' => 1,
-            'output' => 'Gagal menjalankan proses artisan.',
+            'exit_code' => $exitCode,
+            'output' => trim(implode(PHP_EOL, $outputLines)),
         ];
     }
 
-    fclose($pipes[0]);
+    if (admintoolFunctionAvailable('shell_exec')) {
+        $currentDirectory = getcwd();
 
-    $output = stream_get_contents($pipes[1]);
-    $errorOutput = stream_get_contents($pipes[2]);
+        chdir($workingDirectory);
+        $output = shell_exec($shellCommand.' 2>&1');
 
-    fclose($pipes[1]);
-    fclose($pipes[2]);
+        if ($currentDirectory !== false) {
+            chdir($currentDirectory);
+        }
 
-    $exitCode = proc_close($process);
+        return [
+            'exit_code' => $output === null ? 1 : 0,
+            'output' => trim((string) $output),
+        ];
+    }
 
     return [
-        'exit_code' => $exitCode,
-        'output' => trim((string) $output.PHP_EOL.(string) $errorOutput),
+        'exit_code' => 1,
+        'output' => 'Semua fungsi eksekusi command dinonaktifkan di server ini (proc_open, exec, shell_exec). Hubungi hosting atau aktifkan salah satu fungsi tersebut.',
     ];
 }
 
