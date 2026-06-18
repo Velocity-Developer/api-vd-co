@@ -340,6 +340,12 @@ $commands = [
         'arguments' => ['queue:restart', '--no-interaction'],
         'danger' => false,
     ],
+    'seed_user' => [
+        'label' => 'Seed User',
+        'description' => 'Menjalankan seeder UserSeeder untuk membuat user default.',
+        'arguments' => ['db:seed', '--class=UserSeeder', '--no-interaction'],
+        'danger' => false,
+    ],
     'copy_public_html' => [
         'label' => 'Copy Public',
         'description' => 'Copy isi folder public ke public_html sejajar folder Laravel.',
