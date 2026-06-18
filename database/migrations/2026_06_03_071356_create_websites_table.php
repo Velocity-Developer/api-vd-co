@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('websites', function (Blueprint $table) {
             $table->id();
-            $table->string('domain')->unique();
+            $table->string('domain', 191)->unique();
             $table->string('ip_address')->nullable();
-            $table->string('license_key')->unique();
+            $table->string('license_key', 191)->unique();
             $table->enum('status', ['active', 'invalid'])->default('active');
             $table->string('theme_version')->nullable();
             $table->string('plugin_version')->nullable();

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('licenses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('code')->unique();
+            $table->string('code', 191)->unique();
             $table->boolean('is_active')->default(true);
             $table->timestamp('used_at')->nullable();
             $table->timestamp('expires_at')->nullable();
