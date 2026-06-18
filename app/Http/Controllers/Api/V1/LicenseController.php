@@ -29,6 +29,12 @@ class LicenseController extends Controller
         $source = $request->header('source');
         $website = $source ? Website::where('domain', $source)->first() : null;
 
+        //update License Key website
+        if ($website) {
+            $website->license_key = $license->code;
+            $website->save();
+        }
+
         return response()->json([
             'status' => true,
             'message' => 'Success',
