@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'unsplash' => [
+        'url' => env('UNSPLASH_URL', 'https://api.unsplash.com'),
+        'access_key' => env('UNSPLASH_ACCESS_KEY'),
+    ],
+
 ];
