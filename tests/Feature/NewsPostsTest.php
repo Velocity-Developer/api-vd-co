@@ -47,13 +47,47 @@ test('news posts can be filtered by category and paginated', function () {
         ->assertJsonMissing(['id' => $otherPost->id]);
 });
 
+test('news posts can skip the latest posts', function () {
+    $license = License::factory()->create([
+        'expires_at' => now()->addDay(),
+    ]);
+    $category = Category::factory()->create();
+
+    $oldestPost = Post::factory()->create([
+        'title' => 'Oldest Post',
+        'slug' => 'oldest-post',
+        'created_at' => now()->subMinutes(2),
+    ]);
+    $middlePost = Post::factory()->create([
+        'title' => 'Middle Post',
+        'slug' => 'middle-post',
+        'created_at' => now()->subMinute(),
+    ]);
+    $latestPost = Post::factory()->create([
+        'title' => 'Latest Post',
+        'slug' => 'latest-post',
+        'created_at' => now(),
+    ]);
+
+    $category->posts()->attach([$oldestPost->id, $middlePost->id, $latestPost->id]);
+
+    $this->withHeader('License', $license->code)
+        ->getJson("/api/v1/news/posts?category_id={$category->id}&post_per_page=2&skip=1")
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $middlePost->id)
+        ->assertJsonPath('data.1.id', $oldestPost->id)
+        ->assertJsonPath('pagination.per_page', 2)
+        ->assertJsonPath('pagination.total', 3);
+});
+
 test('news posts validates its filters', function () {
     $license = License::factory()->create([
         'expires_at' => now()->addDay(),
     ]);
 
     $this->withHeader('License', $license->code)
-        ->getJson('/api/v1/news/posts?category_id=999999&post_per_page=101')
+        ->getJson('/api/v1/news/posts?category_id=999999&post_per_page=101&skip=-1')
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['category_id', 'post_per_page']);
+        ->assertJsonValidationErrors(['category_id', 'post_per_page', 'skip']);
 });

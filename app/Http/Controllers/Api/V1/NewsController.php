@@ -9,6 +9,7 @@ use App\Models\Post;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class NewsController extends Controller
 {
@@ -38,9 +39,14 @@ class NewsController extends Controller
         $validated = $request->validate([
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'post_per_page' => ['nullable', 'integer', 'between:1,100'],
+            'skip' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $posts = Post::query()
+        $postPerPage = $validated['post_per_page'] ?? 10;
+        $skip = $validated['skip'] ?? 0;
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        $query = Post::query()
             ->with(['user:id,name,email', 'categories:id,name,slug', 'tags:id,name,slug'])
             ->when(
                 isset($validated['category_id']),
@@ -49,8 +55,22 @@ class NewsController extends Controller
                     fn (Builder $categoryQuery): Builder => $categoryQuery->whereKey($validated['category_id']),
                 ),
             )
-            ->latest()
-            ->paginate($validated['post_per_page'] ?? 10);
+            ->latest();
+
+        $total = (clone $query)->count();
+        $posts = new LengthAwarePaginator(
+            $query
+                ->skip($skip + (($currentPage - 1) * $postPerPage))
+                ->take($postPerPage)
+                ->get(),
+            $total,
+            $postPerPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ],
+        );
 
         return response()->json([
             'status' => true,
