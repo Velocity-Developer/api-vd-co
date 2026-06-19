@@ -6,6 +6,8 @@ use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\RequestLogController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\WebsiteController;
+use App\Http\Controllers\ArticleGeneratorController;
+
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -34,6 +36,8 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
         'websites' => WebsiteController::class,
         // 'request-logs' => RequestLogController::class,
     ]);
+
+    Route::post('article-generator', [ArticleGeneratorController::class, 'generate']);
 });
 
 require __DIR__ . '/settings.php';
