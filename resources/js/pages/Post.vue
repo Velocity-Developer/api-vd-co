@@ -669,16 +669,22 @@ const submitGenerateArticle = async (
 
         aiResult.value = article;
         aiRawResult.value = raw;
-
-        if (article) {
-            applyGeneratedArticle(article);
-            statusMessage.value = 'Hasil artikel AI berhasil dimasukkan ke form.';
-        }
     } catch (error) {
         handleAiValidationErrors(error);
     } finally {
         isGenerating.value = false;
     }
+};
+
+const useGeneratedArticle = (): void => {
+    if (!aiResult.value) {
+        return;
+    }
+
+    applyGeneratedArticle(aiResult.value);
+    statusMessage.value = 'Hasil artikel AI berhasil dimasukkan ke form.';
+    isGenerateModalOpen.value = false;
+    resetAiGenerator();
 };
 
 const submit = async (): Promise<void> => {
@@ -995,7 +1001,7 @@ onMounted(async () => {
         <UModal
             v-model:open="isGenerateModalOpen"
             title="Generate Article AI"
-            description="Masukkan topik artikel, lalu hasil AI akan ditampilkan dan diisikan ke form post."
+            description="Masukkan topik artikel, lihat hasilnya dulu, lalu klik Gunakan untuk mengisi form post."
             :ui="{ footer: 'justify-end' }"
         >
             <template #body>
@@ -1104,6 +1110,16 @@ onMounted(async () => {
                     variant="outline"
                     :disabled="isGenerating"
                     @click="closeGenerateModal"
+                />
+
+                <UButton
+                    v-if="aiResult"
+                    color="primary"
+                    variant="soft"
+                    icon="i-lucide-check"
+                    label="Gunakan"
+                    :disabled="isGenerating"
+                    @click="useGeneratedArticle"
                 />
 
                 <UButton
