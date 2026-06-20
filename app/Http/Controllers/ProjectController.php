@@ -40,6 +40,7 @@ class ProjectController extends Controller
     public function store(Request $request): ProjectResource
     {
         $validated = $request->validate($this->rules());
+        $validated['slug'] = Str::slug($validated['slug']);
         $validated['package_file'] = $this->storePackageFile($request);
 
         $project = Project::create($validated);
@@ -61,6 +62,10 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project): ProjectResource
     {
         $validated = $request->validate($this->rules($project, true));
+
+        if (array_key_exists('slug', $validated)) {
+            $validated['slug'] = Str::slug($validated['slug']);
+        }
 
         if ($request->hasFile('package_file')) {
             $this->deletePackageFile($project);
@@ -102,6 +107,13 @@ class ProjectController extends Controller
                 'required',
                 'string',
                 'max:255',
+            ])),
+            'slug' => array_values(array_filter([
+                $isUpdate ? 'sometimes' : null,
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('projects', 'slug')->ignore($project),
             ])),
             'version' => ['nullable', 'string', 'max:255'],
             'github_url' => ['nullable', 'url', 'max:255'],

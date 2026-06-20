@@ -25,6 +25,7 @@ type ParentProjectOption = {
 type Project = {
     id: number;
     name: string;
+    slug: string;
     version: string | null;
     github_url: string | null;
     package_file: string | null;
@@ -58,6 +59,7 @@ type ResourceResponse<T> = {
 
 type ProjectFormState = {
     name: string;
+    slug: string;
     version: string;
     github_url: string;
     package_external_url: string;
@@ -93,6 +95,10 @@ const columns: TableColumn<Project>[] = [
     {
         accessorKey: 'name',
         header: 'Project',
+    },
+    {
+        accessorKey: 'slug',
+        header: 'Slug',
     },
     {
         accessorKey: 'type',
@@ -148,6 +154,7 @@ const packageFileInput = ref<HTMLInputElement | null>(null);
 
 const state = reactive<ProjectFormState>({
     name: '',
+    slug: '',
     version: '',
     github_url: '',
     package_external_url: '',
@@ -166,6 +173,7 @@ const filteredProjects = computed(() => {
     return props.projects.data.filter((project) => {
         const searchableContent = [
             project.name,
+            project.slug,
             project.version,
             project.github_url,
             project.package_file,
@@ -275,6 +283,14 @@ const formatDate = (value: string | null): string => {
     }).format(new Date(value));
 };
 
+const slugify = (value: string): string => {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
 const fieldError = (name: string): string | undefined => {
     return serverErrors.value[name];
 };
@@ -284,6 +300,10 @@ const validate = (formState: Partial<ProjectFormState>): FormError[] => {
 
     if (!formState.name?.trim()) {
         errors.push({ name: 'name', message: 'Nama project wajib diisi.' });
+    }
+
+    if (!formState.slug?.trim()) {
+        errors.push({ name: 'slug', message: 'Slug project wajib diisi.' });
     }
 
     if (!formState.type) {
@@ -302,6 +322,7 @@ const validate = (formState: Partial<ProjectFormState>): FormError[] => {
 
 const resetForm = (): void => {
     state.name = '';
+    state.slug = '';
     state.version = '';
     state.github_url = '';
     state.package_external_url = '';
@@ -324,6 +345,7 @@ const openCreateModal = (): void => {
 
 const openEditModal = (project: Project): void => {
     state.name = project.name;
+    state.slug = project.slug;
     state.version = project.version ?? '';
     state.github_url = project.github_url ?? '';
     state.package_external_url = project.package_external_url ?? '';
@@ -361,6 +383,7 @@ const buildPayload = (): FormData => {
     const payload = new FormData();
 
     payload.append('name', state.name.trim());
+    payload.append('slug', state.slug.trim());
     payload.append('type', state.type);
 
     const version = nullableTrimmed(state.version);
@@ -489,6 +512,15 @@ const visitPage = (page: number): void => {
 };
 
 watch(
+    () => state.name,
+    (nameValue) => {
+        if (!isEditing.value && state.slug === '') {
+            state.slug = slugify(nameValue);
+        }
+    },
+);
+
+watch(
     () => props.projects.meta.current_page,
     (page) => {
         currentPage.value = page;
@@ -570,6 +602,14 @@ watch(isModalOpen, (open) => {
                                 {{ row.original.description || 'No description' }}
                             </p>
                         </div>
+                    </template>
+
+                    <template #slug-cell="{ row }">
+                        <UBadge
+                            color="neutral"
+                            variant="subtle"
+                            :label="row.original.slug"
+                        />
                     </template>
 
                     <template #type-cell="{ row }">
@@ -706,6 +746,20 @@ watch(isModalOpen, (open) => {
                         <UInput
                             v-model="state.name"
                             placeholder="Velocity Addons"
+                            :disabled="isSaving"
+                            class="w-full"
+                        />
+                    </UFormField>
+
+                    <UFormField
+                        name="slug"
+                        label="Slug"
+                        required
+                        :error="fieldError('slug')"
+                    >
+                        <UInput
+                            v-model="state.slug"
+                            placeholder="velocity-addons"
                             :disabled="isSaving"
                             class="w-full"
                         />

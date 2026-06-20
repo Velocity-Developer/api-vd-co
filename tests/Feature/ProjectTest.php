@@ -11,6 +11,7 @@ test('projects table has the expected columns', function () {
     expect(Schema::hasColumns('projects', [
         'id',
         'name',
+        'slug',
         'version',
         'github_url',
         'package_file',
@@ -81,6 +82,7 @@ test('authenticated users can view projects from the controller', function () {
             ->has('projects.data', 2)
             ->where('projects.data.0.id', $childProject->id)
             ->where('projects.data.0.name', 'Client Child Theme')
+            ->where('projects.data.0.slug', $childProject->slug)
             ->where('projects.data.0.type', 'wp_theme_child')
             ->where('projects.data.0.parent.id', $parentProject->id)
             ->where('projects.data.0.parent.name', 'Core Theme')
@@ -100,6 +102,7 @@ test('authenticated users can create a project', function () {
     $this->actingAs($user)
         ->post('/ajax/projects', [
             'name' => 'Velocity Addons',
+            'slug' => 'Velocity Addons Terbaru',
             'version' => '2.1.0',
             'github_url' => 'https://github.com/example/velocity-addons',
             'package_external_url' => 'https://downloads.example.com/velocity-addons.zip',
@@ -110,12 +113,14 @@ test('authenticated users can create a project', function () {
         ])
         ->assertCreated()
         ->assertJsonPath('data.name', 'Velocity Addons')
+        ->assertJsonPath('data.slug', 'velocity-addons-terbaru')
         ->assertJsonPath('data.type', 'wp_plugin')
         ->assertJsonPath('data.parent.id', $parentProject->id)
         ->assertJsonPath('data.parent.name', $parentProject->name);
 
     $this->assertDatabaseHas('projects', [
         'name' => 'Velocity Addons',
+        'slug' => 'velocity-addons-terbaru',
         'type' => 'wp_plugin',
         'parent_id' => $parentProject->id,
         'package_external_url' => 'https://downloads.example.com/velocity-addons.zip',
@@ -151,6 +156,7 @@ test('authenticated users can update a project', function () {
     $this->actingAs($user)
         ->patch("/ajax/projects/{$project->id}", [
             'name' => 'Updated Project',
+            'slug' => 'Updated Project Premium',
             'type' => 'project_client',
             'parent_id' => $newParent->id,
             'version' => '3.0.0',
@@ -159,6 +165,7 @@ test('authenticated users can update a project', function () {
         ])
         ->assertOk()
         ->assertJsonPath('data.name', 'Updated Project')
+        ->assertJsonPath('data.slug', 'updated-project-premium')
         ->assertJsonPath('data.type', 'project_client')
         ->assertJsonPath('data.version', '3.0.0')
         ->assertJsonPath('data.parent.id', $newParent->id);
@@ -166,6 +173,7 @@ test('authenticated users can update a project', function () {
     $this->assertDatabaseHas('projects', [
         'id' => $project->id,
         'name' => 'Updated Project',
+        'slug' => 'updated-project-premium',
         'type' => 'project_client',
         'parent_id' => $newParent->id,
         'version' => '3.0.0',
@@ -183,4 +191,26 @@ test('authenticated users can update a project', function () {
 
     Storage::disk('public')->assertMissing('project-packages/old-package.zip');
     Storage::disk('public')->assertExists($project->package_file);
+});
+
+test('project slug is normalized before saving', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $package = UploadedFile::fake()->create('project-slug.zip', 120, 'application/zip');
+
+    $this->actingAs($user)
+        ->post('/ajax/projects', [
+            'name' => 'Project Slug',
+            'slug' => 'Slug Campur Spasi & Simbol',
+            'type' => 'project_internal',
+            'package_file' => $package,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.slug', 'slug-campur-spasi-simbol');
+
+    $this->assertDatabaseHas('projects', [
+        'name' => 'Project Slug',
+        'slug' => 'slug-campur-spasi-simbol',
+    ]);
 });

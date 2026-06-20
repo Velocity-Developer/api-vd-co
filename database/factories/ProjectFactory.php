@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Project>
@@ -17,8 +18,11 @@ class ProjectFactory extends Factory
      */
     public function definition(): array
     {
+        $name = fake()->unique()->company();
+
         return [
-            'name' => fake()->company(),
+            'name' => $name,
+            'slug' => Str::slug($name).'-'.fake()->unique()->numberBetween(1000, 9999),
             'version' => fake()->semver(),
             'github_url' => fake()->optional()->url(),
             'package_file' => fake()->optional()->filePath(),
