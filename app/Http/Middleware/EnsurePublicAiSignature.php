@@ -2,12 +2,16 @@
 
 namespace App\Http\Middleware;
 
-use Closure;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Response;
 use App\Models\RequestLog;
 use App\Models\Website;
+use Closure;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Throwable;
 
 class EnsurePublicAiSignature
 {
@@ -22,19 +26,83 @@ class EnsurePublicAiSignature
         $expectedSignature = md5(now()->format('dmY'));
 
         if ($signature === '') {
-            return new JsonResponse([
+            $response = new JsonResponse([
                 'status' => false,
                 'message' => 'Signature header is required.',
             ], Response::HTTP_UNAUTHORIZED);
+
+            $this->logRequest($request, $response->getStatusCode());
+
+            return $response;
         }
 
         if (! hash_equals($expectedSignature, $signature)) {
-            return new JsonResponse([
+            $response = new JsonResponse([
                 'status' => false,
                 'message' => 'Signature header is invalid.',
             ], Response::HTTP_FORBIDDEN);
+
+            $this->logRequest($request, $response->getStatusCode());
+
+            return $response;
         }
 
-        return $next($request);
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            $this->logRequest($request, $this->statusCodeForException($exception));
+
+            throw $exception;
+        }
+
+        $this->logRequest($request, $response->getStatusCode());
+
+        return $response;
+    }
+
+    private function logRequest(Request $request, int $status): void
+    {
+        $resource = trim((string) $request->header('resource', ''));
+        $website = $resource === ''
+            ? null
+            : Website::query()->firstOrCreate(
+                ['domain' => $resource],
+                [
+                    'ip_address' => $request->ip(),
+                    'license_key' => $this->websiteLicenseKey($resource),
+                    'status' => 'active',
+                ],
+            );
+
+        RequestLog::create([
+            'route' => $request->getPathInfo(),
+            'method' => $request->method(),
+            'request' => $request->all(),
+            'status' => $status,
+            'website_id' => $website?->id,
+            'license_id' => null,
+        ]);
+    }
+
+    private function websiteLicenseKey(string $resource): string
+    {
+        return 'AI-PUBLIC-'.substr(md5($resource), 0, 24);
+    }
+
+    private function statusCodeForException(Throwable $exception): int
+    {
+        if ($exception instanceof HttpResponseException) {
+            return $exception->getResponse()->getStatusCode();
+        }
+
+        if ($exception instanceof ValidationException) {
+            return $exception->status;
+        }
+
+        if ($exception instanceof HttpExceptionInterface) {
+            return $exception->getStatusCode();
+        }
+
+        return Response::HTTP_INTERNAL_SERVER_ERROR;
     }
 }
