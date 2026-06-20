@@ -39,6 +39,8 @@
         "@inertiajs/vite": "^3.0.0",
         "@inertiajs/vue3": "^3.0.0",
         "@nuxt/ui": "^4.8.1",
+        "@unovis/ts": "^1.6.6",
+        "@unovis/vue": "^1.6.6",
         "@vueuse/core": "^12.8.2",
         "axios": "^1.16.1",
         "class-variance-authority": "^0.7.1",

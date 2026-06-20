@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArticleGeneratorController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectController;
@@ -16,7 +17,7 @@ Route::get('posts', [PostController::class, 'publicIndex'])->name('frontend.post
 Route::get('read/{slug}', [PostController::class, 'read'])->name('read');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::inertia('admin/post', 'Post')->name('post');
     Route::inertia('admin/posts', 'Posts')->name('posts');
     Route::get('admin/projects', [ProjectController::class, 'index'])->name('projects');
