@@ -7,6 +7,7 @@ use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RequestLogController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WebsiteController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/post', 'Post')->name('post');
     Route::inertia('admin/posts', 'Posts')->name('posts');
     Route::get('admin/projects', [ProjectController::class, 'index'])->name('projects');
+    Route::inertia('admin/users', 'Users')->name('users');
     Route::inertia('admin/categories', 'Categories')->name('categories');
     Route::inertia('admin/tags', 'Tags')->name('tags');
     Route::inertia('admin/licenses', 'Licenses')->name('licenses');
@@ -32,6 +34,7 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
     Route::apiResources([
         'posts' => PostController::class,
         'projects' => ProjectController::class,
+        'users' => UserController::class,
         'categories' => CategoryController::class,
         'tags' => TagController::class,
         'licenses' => LicenseController::class,

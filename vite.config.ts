@@ -43,7 +43,7 @@ export default defineConfig({
             router: 'inertia',
             ui: {
                 colors: {
-                    primary: 'black',
+                    primary: 'gray',
                 }
             }
         }),

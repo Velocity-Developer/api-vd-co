@@ -241,8 +241,8 @@ watch(currentPage, (page) => {
                 :loading="isLoading"
                 sticky
                 :ui="{
-                    thead: 'bg-primary-200',
-                    th: 'text-primary-800',
+                    thead: 'bg-primary-700',
+                    th: 'text-white',
                 }"
             >
                 <template #route-cell="{ row }">                    

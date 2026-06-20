@@ -17,6 +17,7 @@ import {
     dashboard,
     posts,
     projects,
+    users as usersRoute,
     categories,
     tags,
     licenses,
@@ -29,6 +30,7 @@ import {
     LayoutGrid,
     BookOpen,
     FolderKanban,
+    Users as UsersIcon,
     Folder,
     Tag,
     Key,
@@ -52,6 +54,11 @@ const mainNavItems: NavItem[] = [
         title: 'Projects',
         href: projects(),
         icon: FolderKanban,
+    },
+    {
+        title: 'Users',
+        href: usersRoute(),
+        icon: UsersIcon,
     },
     {
         title: 'Categories',
