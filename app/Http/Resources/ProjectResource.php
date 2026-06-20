@@ -22,6 +22,7 @@ class ProjectResource extends JsonResource
             'version' => $this->version,
             'requires' => $this->requires_wp,
             'requires_php' => $this->requires_php,
+            'plugin_wp_required' => $this->plugin_wp_required,
             'github_url' => $this->github_url,
             'package_file' => $this->package_file,
             'package_file_url' => $this->packageFileUrl(),

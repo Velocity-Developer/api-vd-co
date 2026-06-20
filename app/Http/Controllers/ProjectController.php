@@ -121,6 +121,7 @@ class ProjectController extends Controller
             'version' => ['nullable', 'string', 'max:255'],
             'requires_wp' => ['nullable', 'string', 'max:255'],
             'requires_php' => ['nullable', 'string', 'max:255'],
+            'plugin_wp_required' => ['nullable', 'boolean'],
             'github_url' => ['nullable', 'url', 'max:255'],
             'package_external_url' => ['nullable', 'url', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -155,14 +156,23 @@ class ProjectController extends Controller
         if (! $this->isWordPressType($type)) {
             $validated['requires_wp'] = null;
             $validated['requires_php'] = null;
+            $validated['plugin_wp_required'] = null;
 
             return $validated;
         }
 
         $validated['requires_wp'] = $validated['requires_wp'] ?? null;
         $validated['requires_php'] = $validated['requires_php'] ?? null;
+        $validated['plugin_wp_required'] = $this->isPluginType($type)
+            ? ($validated['plugin_wp_required'] ?? false)
+            : null;
 
         return $validated;
+    }
+
+    private function isPluginType(mixed $type): bool
+    {
+        return $type === 'wp_plugin';
     }
 
     private function isWordPressType(mixed $type): bool

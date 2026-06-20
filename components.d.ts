@@ -16,6 +16,7 @@ declare module 'vue' {
     UBadge: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Badge.vue')['default']
     UButton: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Button.vue')['default']
     UCard: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Card.vue')['default']
+    UCheckbox: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Checkbox.vue')['default']
     UEditor: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Editor.vue')['default']
     UEditorDragHandle: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/EditorDragHandle.vue')['default']
     UEditorEmojiMenu: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/EditorEmojiMenu.vue')['default']

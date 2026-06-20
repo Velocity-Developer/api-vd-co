@@ -29,6 +29,7 @@ type Project = {
     version: string | null;
     requires: string | null;
     requires_php: string | null;
+    plugin_wp_required: boolean | null;
     github_url: string | null;
     package_file: string | null;
     package_file_url: string | null;
@@ -65,6 +66,7 @@ type ProjectFormState = {
     version: string;
     requires_wp: string;
     requires_php: string;
+    plugin_wp_required: boolean;
     github_url: string;
     package_external_url: string;
     description: string;
@@ -162,6 +164,7 @@ const state = reactive<ProjectFormState>({
     version: '',
     requires_wp: '',
     requires_php: '',
+    plugin_wp_required: false,
     github_url: '',
     package_external_url: '',
     description: '',
@@ -183,6 +186,7 @@ const filteredProjects = computed(() => {
             project.version,
             project.requires,
             project.requires_php,
+            String(project.plugin_wp_required),
             project.github_url,
             project.package_file,
             project.package_file_url,
@@ -256,6 +260,10 @@ const wordPressProjectTypes: ProjectType[] = [
 
 const showsRequiredVersions = computed(() => {
     return wordPressProjectTypes.includes(state.type);
+});
+
+const showsPluginWpRequired = computed(() => {
+    return state.type === 'wp_plugin';
 });
 
 const parentOptions = computed(() => {
@@ -344,6 +352,7 @@ const resetForm = (): void => {
     state.version = '';
     state.requires_wp = '';
     state.requires_php = '';
+    state.plugin_wp_required = false;
     state.github_url = '';
     state.package_external_url = '';
     state.description = '';
@@ -369,6 +378,7 @@ const openEditModal = (project: Project): void => {
     state.version = project.version ?? '';
     state.requires_wp = project.requires ?? '';
     state.requires_php = project.requires_php ?? '';
+    state.plugin_wp_required = project.plugin_wp_required ?? false;
     state.github_url = project.github_url ?? '';
     state.package_external_url = project.package_external_url ?? '';
     state.description = project.description ?? '';
@@ -427,6 +437,10 @@ const buildPayload = (): FormData => {
 
     if (showsRequiredVersions.value && requiresPhp !== null) {
         payload.append('requires_php', requiresPhp);
+    }
+
+    if (showsPluginWpRequired.value) {
+        payload.append('plugin_wp_required', state.plugin_wp_required ? '1' : '0');
     }
 
     if (githubUrl !== null) {
@@ -558,6 +572,10 @@ watch(
         if (!wordPressProjectTypes.includes(typeValue)) {
             state.requires_wp = '';
             state.requires_php = '';
+        }
+
+        if (typeValue !== 'wp_plugin') {
+            state.plugin_wp_required = false;
         }
     },
 );
@@ -898,6 +916,24 @@ watch(isModalOpen, (open) => {
                                 :disabled="isSaving"
                                 class="w-full"
                             />
+                        </UFormField>
+
+                        <UFormField
+                            v-if="showsPluginWpRequired"
+                            name="plugin_wp_required"
+                            label="Plugin WP Required"
+                            hint="Optional"
+                            :error="fieldError('plugin_wp_required')"
+                        >
+                            <div class="flex items-center gap-3 rounded-md border border-default px-3 py-2">
+                                <UCheckbox
+                                    v-model="state.plugin_wp_required"
+                                    :disabled="isSaving"
+                                />
+                                <span class="text-sm text-highlighted">
+                                    Wajib plugin WordPress
+                                </span>
+                            </div>
                         </UFormField>
 
                         <UFormField
