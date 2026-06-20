@@ -9,6 +9,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Models\Website;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -232,6 +233,8 @@ test('request log controller stores updates and deletes a request log', function
 });
 
 test('public project show returns a project by slug', function () {
+    Carbon::setTestNow('2026-06-20 09:00:00');
+
     $parentProject = Project::factory()->create([
         'name' => 'Core Project',
         'slug' => 'core-project',
@@ -243,9 +246,11 @@ test('public project show returns a project by slug', function () {
         'type' => 'wp_plugin',
         'version' => '2.3.0',
         'package_file' => 'project-packages/velocity-addons/velocity-addons-2-3-0.zip',
+        'package_external_url' => 'https://downloads.example.com/velocity-addons.zip',
     ]);
 
-    $this->getJson("/api/v1/projects/{$project->slug}")
+    $response = $this->withHeader('signature', md5(now()->format('dmY')))
+        ->getJson("/api/public/v1/project/{$project->slug}")
         ->assertOk()
         ->assertJsonPath('status', true)
         ->assertJsonPath('message', 'Success')
@@ -253,13 +258,47 @@ test('public project show returns a project by slug', function () {
         ->assertJsonPath('data.name', 'Velocity Addons')
         ->assertJsonPath('data.slug', 'velocity-addons')
         ->assertJsonPath('data.type', 'wp_plugin')
+        ->assertJsonPath('data.package_external_url', 'https://downloads.example.com/velocity-addons.zip')
+        ->assertJsonPath('data.download_url', 'https://downloads.example.com/velocity-addons.zip')
         ->assertJsonPath('data.parent.id', $parentProject->id)
         ->assertJsonPath('data.parent.name', 'Core Project');
+
+    expect($response->json('data'))->not->toHaveKey('created_at')
+        ->and($response->json('data'))->not->toHaveKey('updated_at');
+
+    Carbon::setTestNow();
+});
+
+test('public project show uses package file url as download url when external url is empty', function () {
+    Carbon::setTestNow('2026-06-20 09:00:00');
+
+    Storage::fake('public');
+
+    $project = Project::factory()->create([
+        'slug' => 'package-only-project',
+        'package_file' => 'project-packages/package-only-project/package-only-project.zip',
+        'package_external_url' => null,
+    ]);
+
+    $this->withHeader('signature', md5(now()->format('dmY')))
+        ->getJson("/api/public/v1/project/{$project->slug}")
+        ->assertOk()
+        ->assertJsonPath(
+            'data.download_url',
+            Storage::disk('public')->url('project-packages/package-only-project/package-only-project.zip'),
+        );
+
+    Carbon::setTestNow();
 });
 
 test('public project show returns not found for unknown slug', function () {
-    $this->getJson('/api/v1/projects/missing-project')
+    Carbon::setTestNow('2026-06-20 09:00:00');
+
+    $this->withHeader('signature', md5(now()->format('dmY')))
+        ->getJson('/api/public/v1/project/missing-project')
         ->assertNotFound()
         ->assertJsonPath('status', false)
         ->assertJsonPath('message', 'Project not found');
+
+    Carbon::setTestNow();
 });

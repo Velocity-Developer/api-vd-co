@@ -7,6 +7,7 @@ use App\Http\Resources\ProjectResource;
 use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class ProjectPublicController extends Controller
 {
@@ -24,10 +25,16 @@ class ProjectPublicController extends Controller
             ], 404);
         }
 
+        $data = ProjectResource::make($project)->resolve($request);
+        $downloadUrl = $data['package_external_url'] ?: $data['package_file_url'];
+
         return response()->json([
             'status' => true,
             'message' => 'Success',
-            'data' => ProjectResource::make($project)->resolve($request),
+            'data' => array_merge(
+                Arr::except($data, ['created_at', 'updated_at']),
+                ['download_url' => $downloadUrl],
+            ),
         ]);
     }
 }
