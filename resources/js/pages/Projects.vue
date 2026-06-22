@@ -872,22 +872,6 @@ watch(isModalOpen, (open) => {
                         </UFormField>
 
                         <UFormField
-                            v-if="showsRequiredVersions"
-                            name="requires_wp"
-                            label="Requires WP"
-                            hint="Optional"
-                            :error="fieldError('requires_wp')"
-                        >
-                            <UInput
-                                v-model="state.requires_wp"
-                                placeholder="6.7"
-                                :disabled="isSaving"
-                                class="w-full"
-                            />
-                        </UFormField>
-
-                        <UFormField
-                            v-else
                             name="github_url"
                             label="GitHub URL"
                             hint="Optional"
@@ -902,21 +886,48 @@ watch(isModalOpen, (open) => {
                         </UFormField>
                     </div>
 
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <UFormField
-                            v-if="showsRequiredVersions"
-                            name="requires_php"
-                            label="Requires PHP"
-                            hint="Optional"
-                            :error="fieldError('requires_php')"
-                        >
-                            <UInput
-                                v-model="state.requires_php"
-                                placeholder="8.2"
-                                :disabled="isSaving"
-                                class="w-full"
-                            />
-                        </UFormField>
+                    <div
+                        v-if="showsRequiredVersions"
+                        class="space-y-4 rounded-xl border border-default bg-muted/30 p-4"
+                    >
+                        <div class="space-y-1">
+                            <p class="text-sm font-medium text-default">
+                                WordPress Compatibility
+                            </p>
+                            <p class="text-xs text-muted">
+                                Konfigurasi kebutuhan minimum WordPress untuk project ini.
+                            </p>
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <UFormField
+                                name="requires_wp"
+                                label="Requires WP"
+                                hint="Optional"
+                                :error="fieldError('requires_wp')"
+                            >
+                                <UInput
+                                    v-model="state.requires_wp"
+                                    placeholder="6.7"
+                                    :disabled="isSaving"
+                                    class="w-full"
+                                />
+                            </UFormField>
+
+                            <UFormField
+                                name="requires_php"
+                                label="Requires PHP"
+                                hint="Optional"
+                                :error="fieldError('requires_php')"
+                            >
+                                <UInput
+                                    v-model="state.requires_php"
+                                    placeholder="8.2"
+                                    :disabled="isSaving"
+                                    class="w-full"
+                                />
+                            </UFormField>
+                        </div>
 
                         <UFormField
                             v-if="showsPluginWpRequired"
@@ -925,7 +936,7 @@ watch(isModalOpen, (open) => {
                             hint="Optional"
                             :error="fieldError('plugin_wp_required')"
                         >
-                            <div class="flex items-center gap-3 rounded-md border border-default px-3 py-2">
+                            <div class="flex items-center gap-3 rounded-lg border border-default bg-default px-3 py-2">
                                 <UCheckbox
                                     v-model="state.plugin_wp_required"
                                     :disabled="isSaving"
@@ -934,20 +945,6 @@ watch(isModalOpen, (open) => {
                                     Wajib plugin WordPress
                                 </span>
                             </div>
-                        </UFormField>
-
-                        <UFormField
-                            name="github_url"
-                            label="GitHub URL"
-                            hint="Optional"
-                            :error="fieldError('github_url')"
-                        >
-                            <UInput
-                                v-model="state.github_url"
-                                placeholder="https://github.com/example/repo"
-                                :disabled="isSaving"
-                                class="w-full"
-                            />
                         </UFormField>
                     </div>
 
