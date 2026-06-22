@@ -302,3 +302,63 @@ test('public project show returns not found for unknown slug', function () {
 
     Carbon::setTestNow();
 });
+
+test('public tgm plugins returns wordpress plugins in tgm format', function () {
+    Carbon::setTestNow('2026-06-20 09:00:00');
+
+    Storage::fake('public');
+
+    $requiredPlugin = Project::factory()->create([
+        'name' => 'Beaver Builder',
+        'slug' => 'bb-plugin',
+        'type' => 'wp_plugin',
+        'plugin_wp_required' => true,
+        'version' => '2.10.0.7',
+        'package_external_url' => 'https://api.velocitydeveloper.id/plugins/bb-plugin-standard.zip',
+        'package_file' => 'project-packages/bb-plugin/bb-plugin-standard.zip',
+    ]);
+
+    $optionalPlugin = Project::factory()->create([
+        'name' => 'Velocity Blocks',
+        'slug' => 'velocity-blocks',
+        'type' => 'wp_plugin',
+        'plugin_wp_required' => false,
+        'version' => null,
+        'package_external_url' => null,
+        'package_file' => 'project-packages/velocity-blocks/velocity-blocks.zip',
+    ]);
+
+    Project::factory()->create([
+        'name' => 'Velocity Theme',
+        'slug' => 'velocity-theme',
+        'type' => 'wp_theme',
+    ]);
+
+    $response = $this->withHeader('signature', md5(now()->format('dmY')))
+        ->getJson('/api/public/v1/tgm-plugins')
+        ->assertOk()
+        ->assertJsonPath('status', true)
+        ->assertJsonPath('message', 'Success')
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.name', $requiredPlugin->name)
+        ->assertJsonPath('data.0.slug', $requiredPlugin->slug)
+        ->assertJsonPath('data.0.source', 'https://api.velocitydeveloper.id/plugins/bb-plugin-standard.zip')
+        ->assertJsonPath('data.0.required', true)
+        ->assertJsonPath('data.0.version', '2.10.0.7')
+        ->assertJsonPath('data.0.force_activation', false)
+        ->assertJsonPath('data.0.force_deactivation', false)
+        ->assertJsonPath('data.0.external_url', '')
+        ->assertJsonPath('data.0.is_callable', '')
+        ->assertJsonPath(
+            'data.1.source',
+            Storage::disk('public')->url('project-packages/velocity-blocks/velocity-blocks.zip'),
+        )
+        ->assertJsonPath('data.1.name', $optionalPlugin->name)
+        ->assertJsonPath('data.1.required', false)
+        ->assertJsonPath('data.1.version', '');
+
+    expect($response->json('data.0'))->not->toHaveKey('type')
+        ->and($response->json('data.1'))->not->toHaveKey('type');
+
+    Carbon::setTestNow();
+});
