@@ -80,9 +80,10 @@ class EnsureLicenseKey
         string $licenseKey = '',
     ): void {
         $source = trim((string) $request->header('source', ''));
-        $website = $source === ''
-            ? null
-            : Website::query()->firstOrCreate(
+        $website = null;
+
+        if ($source !== '') {
+            $website = Website::query()->firstOrCreate(
                 ['domain' => $source],
                 [
                     'ip_address' => $request->ip(),
@@ -90,6 +91,15 @@ class EnsureLicenseKey
                     'status' => $license instanceof License ? 'active' : 'invalid',
                 ],
             );
+
+            $website->fill([
+                'ip_address' => $request->ip(),
+                'license_key' => $licenseKey !== '' ? $licenseKey : $website->license_key,
+                'wp_version' => $request->input('wp_version', $website->wp_version),
+                'php_version' => $request->input('php_version', $website->php_version),
+                'plugin_version' => $request->input('velocity_addons_version', $website->plugin_version),
+            ])->save();
+        }
 
         RequestLog::create([
             'route' => $request->getPathInfo(),
@@ -99,6 +109,21 @@ class EnsureLicenseKey
             'website_id' => $website?->id,
             'license_id' => $license?->id,
         ]);
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function websiteVersionPayload(Request $request, Website $website): array
+    {
+        return [
+            'wp_version' => $request->input('wp_version', $website->wp_version),
+            'php_version' => $request->input('php_version', $website->php_version),
+            'plugin_version' => $request->input(
+                'velocity_addons_version',
+                $website->plugin_version,
+            ),
+        ];
     }
 
     private function statusCodeForException(Throwable $exception): int

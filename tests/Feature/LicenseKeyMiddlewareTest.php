@@ -109,6 +109,54 @@ test('api requests create websites from the source header', function () {
         ->and(RequestLog::where('website_id', $secondWebsite->id)->count())->toBe(1);
 });
 
+test('api requests store website version metadata from the payload', function () {
+    $license = License::factory()->create([
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $this->withHeaders([
+        'License' => $license->code,
+        'source' => 'payload.example.com',
+    ])->getJson('/api/v1/license?wp_version=6.9.4&php_version=8.1.34&velocity_addons_version=2.0.10')
+        ->assertOk();
+
+    $website = Website::where('domain', 'payload.example.com')->sole();
+
+    expect($website->license_key)->toBe($license->code)
+        ->and($website->status)->toBe('active')
+        ->and($website->wp_version)->toBe('6.9.4')
+        ->and($website->php_version)->toBe('8.1.34')
+        ->and($website->plugin_version)->toBe('2.0.10');
+});
+
+test('api requests update existing website version metadata from the payload', function () {
+    $license = License::factory()->create([
+        'expires_at' => now()->addDay(),
+    ]);
+    $website = Website::factory()->create([
+        'domain' => 'existing-payload.example.com',
+        'license_key' => 'OLD-LICENSE',
+        'status' => 'invalid',
+        'wp_version' => '6.8.1',
+        'php_version' => '8.0.30',
+        'plugin_version' => '1.0.0',
+    ]);
+
+    $this->withHeaders([
+        'License' => $license->code,
+        'source' => $website->domain,
+    ])->getJson('/api/v1/license?wp_version=6.9.4&php_version=8.1.34&velocity_addons_version=2.0.10')
+        ->assertOk();
+
+    $website->refresh();
+
+    expect($website->license_key)->toBe($license->code)
+        ->and($website->status)->toBe('active')
+        ->and($website->wp_version)->toBe('6.9.4')
+        ->and($website->php_version)->toBe('8.1.34')
+        ->and($website->plugin_version)->toBe('2.0.10');
+});
+
 test('api requests are logged when the endpoint throws an exception', function () {
     $license = License::factory()->create([
         'expires_at' => now()->addDay(),
