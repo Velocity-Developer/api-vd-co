@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureLicenseKey;
 use App\Http\Middleware\EnsurePublicAiSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\VerifyGitHubSignature;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'license' => EnsureLicenseKey::class,
             'public.ai.signature' => EnsurePublicAiSignature::class,
+            'github.signature' => VerifyGitHubSignature::class,
         ]);
 
         $middleware->web(append: [

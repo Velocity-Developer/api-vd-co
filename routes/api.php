@@ -2,9 +2,8 @@
 
 use App\Http\Controllers\Api\V1\LicenseController as ApiV1LicenseController;
 use App\Http\Controllers\Api\V1\NewsController as ApiV1NewsController;
-use App\Http\Controllers\Api\V1\TgmPluginController as ApiV1TgmPluginController;
 use App\Http\Controllers\Api\V1\ProjectController as ApiV1ProjectController;
-
+use App\Http\Controllers\Api\V1\TgmPluginController as ApiV1TgmPluginController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\PostController;
@@ -38,4 +37,8 @@ Route::middleware(['license'])->prefix('v1')->group(function () {
 Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/project/{slug}', [ApiV1ProjectController::class, 'show']);
     Route::get('/tgm-plugins', ApiV1TgmPluginController::class);
+});
+
+Route::middleware('github.signature')->prefix('v1')->group(function () {
+    Route::post('/release-project/{slug}', [ApiV1ProjectController::class, 'update']);
 });

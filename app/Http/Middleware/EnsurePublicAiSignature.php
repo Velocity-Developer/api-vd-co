@@ -77,7 +77,7 @@ class EnsurePublicAiSignature
         RequestLog::create([
             'route' => $request->getPathInfo(),
             'method' => $request->method(),
-            'request' => $request->all(),
+            'request' => $request->input(),
             'status' => $status,
             'website_id' => $website?->id,
             'license_id' => null,
