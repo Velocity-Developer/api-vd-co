@@ -17,13 +17,9 @@ class ArticleGeneratorController extends Controller
         ]);
 
         $article = $articleGenerator->prompt(
-            'Buatkan artikel menarik tentang: ' . $validated['topic'],
-        )->withOptions([
-            'timeout' => 600,
-            'connect_timeout' => 10,
-        ]);
-
-
+            'Buatkan artikel menarik tentang: '.$validated['topic'],
+            timeout: 600,
+        );
 
         return response()->json([
             'data' => $article,

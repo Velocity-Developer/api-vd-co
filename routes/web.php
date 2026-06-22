@@ -40,7 +40,7 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
         'tags' => TagController::class,
         'licenses' => LicenseController::class,
         'websites' => WebsiteController::class,
-        // 'request-logs' => RequestLogController::class,
+        'request-logs' => RequestLogController::class,
     ]);
 
     Route::post('article-generator', [ArticleGeneratorController::class, 'generate']);

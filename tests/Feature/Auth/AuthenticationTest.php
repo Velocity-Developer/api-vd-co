@@ -23,7 +23,9 @@ test('users can authenticate using the login screen', function () {
 });
 
 test('users with two factor enabled are redirected to two factor challenge', function () {
-    $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
+    config([
+        'fortify.features' => [Features::twoFactorAuthentication()],
+    ]);
 
     Features::twoFactorAuthentication([
         'confirm' => true,
@@ -37,7 +39,7 @@ test('users with two factor enabled are redirected to two factor challenge', fun
         'password' => 'password',
     ]);
 
-    $response->assertRedirect(route('two-factor.login'));
+    $response->assertRedirect('/two-factor-challenge');
     $response->assertSessionHas('login.id', $user->id);
     $this->assertGuest();
 });

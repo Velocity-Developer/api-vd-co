@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
+use Laravel\Fortify\Features;
 
 class SecurityController extends Controller
 {
@@ -17,9 +18,30 @@ class SecurityController extends Controller
      */
     public function edit(TwoFactorAuthenticationRequest $request): Response
     {
+        $canManageTwoFactor = Features::canManageTwoFactorAuthentication();
+        $supportsTwoFactorState = method_exists(
+            $request->user(),
+            'hasEnabledTwoFactorAuthentication',
+        );
+
+        if ($canManageTwoFactor && $supportsTwoFactorState) {
+            $request->ensureStateIsValid();
+        }
+
         $props = [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'canManageTwoFactor' => $canManageTwoFactor,
         ];
+
+        if ($canManageTwoFactor) {
+            $props['twoFactorEnabled'] = $supportsTwoFactorState
+                ? $request->user()->hasEnabledTwoFactorAuthentication()
+                : false;
+            $props['requiresConfirmation'] = Features::optionEnabled(
+                Features::twoFactorAuthentication(),
+                'confirm',
+            );
+        }
 
         return Inertia::render('settings/Security', $props);
     }

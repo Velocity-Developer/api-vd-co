@@ -17,6 +17,7 @@ beforeEach(function () {
         'code' => 'APICO-API-TEST',
     ]);
 
+    $this->actingAs(User::factory()->create());
     $this->withHeader('License', $license->code);
 });
 

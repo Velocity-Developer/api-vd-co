@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Fortify;
 
 /**
  * @extends Factory<User>
@@ -46,5 +47,21 @@ class UserFactory extends Factory
     /**
      * Indicate that the model has two-factor authentication configured.
      */
-    public function withTwoFactor(): static {}
+    public function withTwoFactor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'two_factor_secret' => Fortify::currentEncrypter()->encrypt('test-two-factor-secret'),
+            'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode([
+                'recovery-code-1',
+                'recovery-code-2',
+                'recovery-code-3',
+                'recovery-code-4',
+                'recovery-code-5',
+                'recovery-code-6',
+                'recovery-code-7',
+                'recovery-code-8',
+            ])),
+            'two_factor_confirmed_at' => now(),
+        ]);
+    }
 }
