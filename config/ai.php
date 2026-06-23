@@ -121,8 +121,8 @@ return [
         'openai' => [
             'driver' => 'openai',
             'key' => env('OPENAI_API_KEY'),
-            'url' => env('OPENAI_URL', 'https://free.wsd.my.id/v1'),
-            'model' => env('OPENAI_MODEL', 'codex-pro'),
+            'url' => env('OPENAI_URL'),
+            'model' => env('OPENAI_MODEL'),
         ],
 
         'openrouter' => [

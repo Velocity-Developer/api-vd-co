@@ -50,6 +50,7 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
     ]);
 
     Route::post('article-generator', [ArticleGeneratorController::class, 'generate']);
+    Route::post('article-generator-by-agent', [ArticleGeneratorController::class, 'generate_by_agent']);
 });
 
 require __DIR__.'/settings.php';

@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\Agents\ArticleGenerator;
 use App\Models\User;
 use App\Services\AiProviderService;
 
@@ -49,4 +50,31 @@ test('article generator validates the topic field', function () {
         ])
         ->assertRedirect()
         ->assertSessionHasErrors(['topic']);
+});
+
+test('authenticated users can generate article content from a topic using the article generator agent', function () {
+    $user = User::factory()->create();
+    $expectedArticle = [
+        'title' => 'Panduan Laravel Testing',
+        'content' => '<p>Isi artikel pengujian.</p>',
+        'excerpt' => 'Ringkasan artikel pengujian.',
+        'tags' => ['laravel', 'testing'],
+        'image_keyword' => 'testing',
+    ];
+
+    ArticleGenerator::fake([$expectedArticle]);
+
+    $this->actingAs($user)
+        ->withoutMiddleware()
+        ->postJson('/ajax/article-generator-by-agent', [
+            'topic' => 'Laravel testing',
+        ])
+        ->assertOk()
+        ->assertJson([
+            'data' => $expectedArticle,
+        ]);
+
+    ArticleGenerator::assertPrompted(
+        'Buatkan artikel menarik tentang: Laravel testing',
+    );
 });

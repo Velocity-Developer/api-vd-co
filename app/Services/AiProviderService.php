@@ -21,6 +21,7 @@ class AiProviderService
      */
     public function article_generator(string $topic, bool $stream = false): array
     {
+        // 1. Kirim POST request ke API Anda
         $response = Http::baseUrl((string) config('services.ai_provider.url'))
             ->acceptJson()
             ->withToken((string) config('services.ai_provider.key'))
@@ -32,93 +33,48 @@ class AiProviderService
                 'messages' => [
                     [
                         'role' => 'system',
-                        'content' => 'Anda adalah seorang blogger profesional, penulis artikel SEO, dan pakar konten digital yang andal.',
+                        'content' => $this->system_prompt(),
                     ],
                     [
                         'role' => 'user',
-                        'content' => 'Buatkan artikel menarik tentang: '.$topic,
+                        'content' => 'Buatkan artikel menarik tentang: ' . $topic,
                     ],
                 ],
                 'response_format' => [
-                    'type' => 'json_schema',
-                    'json_schema' => [
-                        'name' => 'article_generator',
-                        'schema' => $this->articleSchema(),
-                    ],
+                    'type' => 'json_object',
                 ],
                 'stream' => $stream,
             ])
             ->throw()
             ->json();
 
-        $content = data_get($response, 'choices.0.message.content');
+        // 2. Cek apakah request ke API sukses
+        if ($response->successful()) {
+            // Parse JSON Pertama: Mengubah response API menjadi array PHP
+            $apiData = $response->json();
 
-        if (! is_string($content) || $content === '') {
-            throw new RuntimeException('AI provider did not return article content.');
+            // Mengambil string teks JSON yang ter-escape dari dalam properti content
+            $contentString = $apiData['choices'][0]['message']['content'];
+
+            // Parse JSON Kedua: Mengubah string artikel menjadi array PHP yang bersih
+            $article = json_decode($contentString, true);
+
+            return $article;
         }
-
-        try {
-            /** @var array{
-             *     title: string,
-             *     content: string,
-             *     excerpt: string,
-             *     tags: array<int, string>,
-             *     image_keyword: string
-             * } $article
-             */
-            $article = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('AI provider returned an invalid article payload.', previous: $exception);
-        }
-
-        return $article;
+        return response()->array(['error' => 'Gagal generate artikel',], 500);
     }
 
     /**
-     * @return array{
-     *     type: string,
-     *     additionalProperties: bool,
-     *     required: array<int, string>,
-     *     properties: array<string, array<string, mixed>>
+     * @return string{
      * }
      */
-    private function articleSchema(): array
+    private function system_prompt(): string
     {
-        return [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'required' => [
-                'title',
-                'content',
-                'excerpt',
-                'tags',
-                'image_keyword',
-            ],
-            'properties' => [
-                'title' => [
-                    'type' => 'string',
-                    'description' => 'Judul artikel yang menarik, informatif, dan ramah SEO. Maksimal 80 karakter.',
-                ],
-                'content' => [
-                    'type' => 'string',
-                    'description' => 'Isi artikel lengkap dan mendalam (minimal 4 paragraf). Gunakan format tag HTML dasar seperti <p>, <h3>, dan <strong> untuk struktur teksnya.',
-                ],
-                'excerpt' => [
-                    'type' => 'string',
-                    'description' => 'Ringkasan singkat artikel dalam 2-3 kalimat untuk deskripsi meta atau cuplikan halaman depan. Maksimal 160 karakter.',
-                ],
-                'tags' => [
-                    'type' => 'array',
-                    'description' => 'Daftar kata kunci atau tag yang relevan dengan isi artikel. Maksimal 5 kata kunci pendek.',
-                    'items' => [
-                        'type' => 'string',
-                    ],
-                ],
-                'image_keyword' => [
-                    'type' => 'string',
-                    'description' => 'Keyword untuk gambar artikel. Maksimal 1 kata kunci pendek dalam bahasa Inggris.',
-                ],
-            ],
-        ];
+        $prompt = 'Anda adalah mesin generator konten SEO profesional handal berbasis JSON. Tugas Anda adalah mengubah topik yang diberikan user menjadi objek JSON tunggal yang valid tanpa teks tambahan di luar JSON.';
+        $prompt .= "Aturan Ketat: Tidak boleh ada teks tambahan atau keterangan di luar JSON. Jangan menulis kata pengantar seperti 'Berikut adalah artikel...', jangan beri salam, dan jangan beri teks penutup.";
+        $prompt .= "Output HARUS berupa JSON valid yang langsung bisa di-parse.";
+        $prompt .= "Format JSON wajib mengikuti struktur berikut:{'title' => 'Judul menarik, informatif, ramah SEO (maksimal 80 karakter)', 'content' => 'Isi artikel lengkap dan mendalam minimal 4 paragraf. Gunakan format tag HTML dasar seperti <p>, <h3>, dan <strong', 'excerpt' => 'Ringkasan singkat artikel dalam 2-3 kalimat untuk meta description (maksimal 160 karakter)', 'tags' => 'maksimal 5 array kata kunci pendek, 'image_keyword' => '1 kata kunci gambar dalam bahasa Inggris'}";
+
+        return $prompt;
     }
 }
