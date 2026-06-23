@@ -13,12 +13,12 @@ return [
     |
     */
 
-    'default' => env('DEFAULT_API', 'gemini'),
-    'default_for_images' => env('DEFAULT_API_IMAGES', 'gemini'),
-    'default_for_audio' => env('DEFAULT_API_AUDIO', 'gemini'),
-    'default_for_transcription' => env('DEFAULT_API_TRANSCRIPTIONS', 'gemini'),
-    'default_for_embeddings' => env('DEFAULT_API_EMBEDDINGS', 'gemini'),
-    'default_for_reranking' => env('DEFAULT_API_RERANKING', 'gemini'),
+    'default' => env('DEFAULT_API', 'openai'),
+    'default_for_images' => env('DEFAULT_API_IMAGES', 'openai'),
+    'default_for_audio' => env('DEFAULT_API_AUDIO', 'openai'),
+    'default_for_transcription' => env('DEFAULT_API_TRANSCRIPTIONS', 'openai'),
+    'default_for_embeddings' => env('DEFAULT_API_EMBEDDINGS', 'openai'),
+    'default_for_reranking' => env('DEFAULT_API_RERANKING', 'openai'),
 
     /*
     |--------------------------------------------------------------------------
@@ -121,7 +121,8 @@ return [
         'openai' => [
             'driver' => 'openai',
             'key' => env('OPENAI_API_KEY'),
-            'url' => env('OPENAI_URL', 'https://api.openai.com/v1'),
+            'url' => env('OPENAI_URL', 'https://free.wsd.my.id/v1'),
+            'model' => env('OPENAI_MODEL', 'codex-pro'),
         ],
 
         'openrouter' => [

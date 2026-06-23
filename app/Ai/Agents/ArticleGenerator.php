@@ -11,7 +11,9 @@ use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
 use Stringable;
+use Laravel\Ai\Attributes\Model;
 
+#[Model('codex-pro')]
 class ArticleGenerator implements Agent, Conversational, HasStructuredOutput, HasTools
 {
     use Promptable;
