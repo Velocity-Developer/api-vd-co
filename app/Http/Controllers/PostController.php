@@ -109,15 +109,27 @@ class PostController extends Controller
         );
 
         $images = collect($result['results'] ?? [])
-            ->map(fn (array $photo): array => [
-                'id' => $photo['id'] ?? null,
-                'description' => $photo['description'] ?? $photo['alt_description'] ?? null,
-                'thumb_url' => Arr::get($photo, 'urls.thumb'),
-                'small_url' => Arr::get($photo, 'urls.small'),
-                'regular_url' => Arr::get($photo, 'urls.regular'),
-                'author_name' => Arr::get($photo, 'user.name'),
-            ])
-            ->filter(fn (array $photo): bool => filled($photo['id']) && filled($photo['small_url']) && filled($photo['regular_url']))
+            ->map(function (array $photo): array {
+                $regularUrl = Arr::get($photo, 'urls.regular');
+
+                return [
+                    'id' => $photo['id'] ?? null,
+                    'description' => $photo['description'] ?? $photo['alt_description'] ?? null,
+                    'thumb_url' => Arr::get($photo, 'urls.thumb'),
+                    'small_url' => Arr::get($photo, 'urls.small'),
+                    'regular_url' => $regularUrl,
+                    'download_url' => filled($regularUrl)
+                        ? $this->recommendedImageDownloadUrl($regularUrl)
+                        : null,
+                    'author_name' => Arr::get($photo, 'user.name'),
+                ];
+            })
+            ->filter(
+                fn (array $photo): bool => filled($photo['id'])
+                    && filled($photo['small_url'])
+                    && filled($photo['regular_url'])
+                    && filled($photo['download_url'])
+            )
             ->values();
 
         $total = max((int) ($result['total'] ?? 0), 0);
@@ -186,6 +198,27 @@ class PostController extends Controller
             'Content-Type' => $contentType,
             'Content-Disposition' => sprintf('inline; filename="%s.%s"', $fileName, $extension),
         ]);
+    }
+
+    private function recommendedImageDownloadUrl(string $url): string
+    {
+        $query = [];
+        $existingQuery = parse_url($url, PHP_URL_QUERY);
+
+        if (is_string($existingQuery)) {
+            parse_str($existingQuery, $query);
+        }
+
+        $query = array_merge($query, [
+            'w' => 640,
+            'fit' => 'max',
+            'auto' => 'format',
+            'q' => 80,
+        ]);
+
+        $baseUrl = strtok($url, '?');
+
+        return $baseUrl.'?'.http_build_query($query);
     }
 
     /**

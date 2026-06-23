@@ -81,6 +81,7 @@ type RecommendedImage = {
     thumb_url: string;
     small_url: string;
     regular_url: string;
+    download_url: string;
     author_name: string | null;
 };
 
@@ -864,7 +865,7 @@ const selectRecommendedImage = async (
         const response = await axios.post<Blob>(
             '/ajax/posts/recommended-image',
             {
-                url: recommendedImage.regular_url,
+                url: recommendedImage.download_url,
                 file_name:
                     (recommendedImage.description ?? state.slug) ||
                     'unsplash-image',
@@ -1384,7 +1385,7 @@ onMounted(async () => {
         <UModal
             v-model:open="isImageRecommendedModalOpen"
             title="Image Recommended"
-            description="Cari gambar dari Unsplash lalu pilih satu untuk langsung dipakai sebagai image post."
+            description="Cari gambar dari Unsplash lalu pilih satu untuk langsung dipakai sebagai image post. Gambar yang dipilih akan diambil versi ringan sekitar 640px."
             :ui="{ content: 'sm:max-w-7xl', footer: 'justify-end' }"
         >
             <template #body>

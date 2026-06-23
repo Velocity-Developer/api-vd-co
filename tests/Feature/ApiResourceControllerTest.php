@@ -124,6 +124,7 @@ test('post controller returns recommended unsplash images', function () {
         ->assertJsonPath('data.0.thumb_url', 'https://images.unsplash.com/photo-1-thumb')
         ->assertJsonPath('data.0.small_url', 'https://images.unsplash.com/photo-1-small')
         ->assertJsonPath('data.0.regular_url', 'https://images.unsplash.com/photo-1-regular')
+        ->assertJsonPath('data.0.download_url', 'https://images.unsplash.com/photo-1-regular?w=640&fit=max&auto=format&q=80')
         ->assertJsonPath('data.0.author_name', 'Taylor')
         ->assertJsonPath('meta.current_page', 2)
         ->assertJsonPath('meta.last_page', 2)
