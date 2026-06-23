@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import {
     VisAxis,
     VisDonut,
+    VisGroupedBar,
     VisLine,
     VisSingleContainer,
     VisXYContainer,
@@ -94,7 +95,11 @@ const topRoutesChartData = computed(
     () => props.dashboardData.request_logs_top_routes,
 );
 const topCategoriesChartData = computed(
-    () => props.dashboardData.top_categories_by_posts,
+    () =>
+        props.dashboardData.top_categories_by_posts.map((item, index, items) => ({
+            ...item,
+            rank: items.length - index,
+        })),
 );
 
 const lineX = (d: DailyRequestLog): Date => new Date(`${d.date}T00:00:00`);
@@ -139,15 +144,33 @@ const donutCenterLabel = computed(() =>
     donutTotal.value.toLocaleString('id-ID'),
 );
 const donutCenterSubLabel = 'Requests';
-const topCategoriesMaxTotal = computed(() =>
-    Math.max(...topCategoriesChartData.value.map((item) => item.total), 0),
+const topCategoriesChartHeight = computed(() =>
+    Math.max(topCategoriesChartData.value.length * 32, 320),
 );
-const topCategoryBarWidth = (total: number): string => {
-    if (topCategoriesMaxTotal.value === 0) {
-        return '0%';
+
+const topCategoryX = (d: { rank: number }): number => d.rank;
+const topCategoryY = (d: { total: number }): number => d.total;
+
+const topCategoryTicks = computed(() =>
+    topCategoriesChartData.value.map((item) => item.rank),
+);
+
+const topCategoryTickFormat = (tick: number | Date): string => {
+    if (tick instanceof Date) {
+        return '';
     }
 
-    return `${(total / topCategoriesMaxTotal.value) * 100}%`;
+    const category = topCategoriesChartData.value.find((item) => item.rank === tick);
+
+    return category?.name ?? '';
+};
+
+const topCategoryValueFormat = (tick: number | Date): string => {
+    if (tick instanceof Date) {
+        return '';
+    }
+
+    return tick.toLocaleString('id-ID');
 };
 </script>
 
@@ -339,30 +362,37 @@ const topCategoryBarWidth = (total: number): string => {
                     v-if="topCategoriesChartData.length > 0"
                     class="rounded-xl bg-muted/20 p-3"
                 >
-                    <div class="space-y-3">
-                        <div
-                            v-for="item in topCategoriesChartData"
-                            :key="item.name"
-                            class="grid gap-2 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)_auto] md:items-center"
-                        >
-                            <p class="truncate text-sm text-highlighted">
-                                {{ item.name }}
-                            </p>
-                            <div
-                                class="h-3 overflow-hidden rounded-full bg-muted"
-                            >
-                                <div
-                                    class="h-full rounded-full `bg-(--color-chart-2) transition-all duration-500"
-                                    :style="{
-                                        width: topCategoryBarWidth(item.total),
-                                    }"
-                                />
-                            </div>
-                            <p class="text-right text-sm font-medium text-muted">
-                                {{ item.total.toLocaleString('id-ID') }}
-                            </p>
-                        </div>
-                    </div>
+                    <VisXYContainer
+                        :height="topCategoriesChartHeight"
+                        :xDomain="[0, undefined]"
+                        class="dashboard-chart"
+                    >
+                        <VisGroupedBar
+                            :data="topCategoriesChartData"
+                            :x="topCategoryX"
+                            :y="[topCategoryY]"
+                            orientation="horizontal"
+                            color="var(--color-chart-2)"
+                            :roundedCorners="6"
+                            :barPadding="0.15"
+                            :groupPadding="0.2"
+                        />
+                        <VisAxis
+                            type="x"
+                            :numTicks="6"
+                            :tickFormat="topCategoryValueFormat"
+                            :domainLine="false"
+                        />
+                        <VisAxis
+                            type="y"
+                            :tickValues="topCategoryTicks"
+                            :tickFormat="topCategoryTickFormat"
+                            :gridLine="false"
+                            :domainLine="false"
+                            :tickLine="false"
+                            :tickTextWidth="220"
+                        />
+                    </VisXYContainer>
                 </div>
 
                 <div
