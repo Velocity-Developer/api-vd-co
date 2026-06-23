@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\Post;
 use App\Models\RequestLog;
 use App\Models\Website;
@@ -29,6 +30,10 @@ class DashboardService
      *         route: string,
      *         total: int,
      *         percentage: float
+     *     }>,
+     *     top_categories_by_posts: array<int, array{
+     *         name: string,
+     *         total: int
      *     }>
      * }
      */
@@ -54,6 +59,7 @@ class DashboardService
             ],
             'request_logs_daily' => $dailyLogs->values()->all(),
             'request_logs_top_routes' => $topRoutes->values()->all(),
+            'top_categories_by_posts' => $this->topCategoriesByPosts()->values()->all(),
         ];
     }
 
@@ -119,5 +125,22 @@ class DashboardService
                 ? 0.0
                 : round(($route['total'] / $grandTotal) * 100, 2),
         ]);
+    }
+
+    /**
+     * @return Collection<int, array{name: string, total: int}>
+     */
+    private function topCategoriesByPosts(): Collection
+    {
+        return Category::query()
+            ->withCount('posts')
+            ->orderByDesc('posts_count')
+            ->orderBy('name')
+            ->limit(50)
+            ->get()
+            ->map(fn (Category $category): array => [
+                'name' => $category->name,
+                'total' => (int) $category->posts_count,
+            ]);
     }
 }

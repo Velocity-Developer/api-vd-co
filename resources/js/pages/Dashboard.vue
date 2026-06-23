@@ -37,6 +37,10 @@ type DashboardData = {
     };
     request_logs_daily: DailyRequestLog[];
     request_logs_top_routes: TopRequestRoute[];
+    top_categories_by_posts: {
+        name: string;
+        total: number;
+    }[];
 };
 
 const props = defineProps<{
@@ -89,6 +93,9 @@ const dailyChartData = computed(() => props.dashboardData.request_logs_daily);
 const topRoutesChartData = computed(
     () => props.dashboardData.request_logs_top_routes,
 );
+const topCategoriesChartData = computed(
+    () => props.dashboardData.top_categories_by_posts,
+);
 
 const lineX = (d: DailyRequestLog): Date => new Date(`${d.date}T00:00:00`);
 const lineY = (d: DailyRequestLog): number => d.total;
@@ -132,6 +139,16 @@ const donutCenterLabel = computed(() =>
     donutTotal.value.toLocaleString('id-ID'),
 );
 const donutCenterSubLabel = 'Requests';
+const topCategoriesMaxTotal = computed(() =>
+    Math.max(...topCategoriesChartData.value.map((item) => item.total), 0),
+);
+const topCategoryBarWidth = (total: number): string => {
+    if (topCategoriesMaxTotal.value === 0) {
+        return '0%';
+    }
+
+    return `${(total / topCategoriesMaxTotal.value) * 100}%`;
+};
 </script>
 
 <template>
@@ -304,5 +321,75 @@ const donutCenterSubLabel = 'Requests';
                 </div>
             </UCard>
         </div>
+
+        <UCard class="border border-default">
+            <template #header>
+                <div>
+                    <h2 class="text-lg font-semibold text-highlighted">
+                        Top Categories by Posts
+                    </h2>
+                    <p class="text-sm text-muted">
+                        50 kategori dengan jumlah post terbanyak.
+                    </p>
+                </div>
+            </template>
+
+            <div class="space-y-4">
+                <div
+                    v-if="topCategoriesChartData.length > 0"
+                    class="rounded-xl bg-muted/20 p-3"
+                >
+                    <div class="space-y-3">
+                        <div
+                            v-for="item in topCategoriesChartData"
+                            :key="item.name"
+                            class="grid gap-2 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)_auto] md:items-center"
+                        >
+                            <p class="truncate text-sm text-highlighted">
+                                {{ item.name }}
+                            </p>
+                            <div
+                                class="h-3 overflow-hidden rounded-full bg-muted"
+                            >
+                                <div
+                                    class="h-full rounded-full bg-[var(--color-chart-2)] transition-all duration-500"
+                                    :style="{
+                                        width: topCategoryBarWidth(item.total),
+                                    }"
+                                />
+                            </div>
+                            <p class="text-right text-sm font-medium text-muted">
+                                {{ item.total.toLocaleString('id-ID') }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    v-if="topCategoriesChartData.length > 0"
+                    class="grid gap-2 rounded-lg border border-default bg-muted/10 px-3 py-2 sm:grid-cols-3"
+                >
+                    <div
+                        v-for="item in topCategoriesChartData.slice(0, 3)"
+                        :key="`${item.name}-summary`"
+                        class="rounded-lg bg-muted/20 px-3 py-2"
+                    >
+                        <p class="truncate text-xs text-muted">
+                            {{ item.name }}
+                        </p>
+                        <p class="text-lg font-semibold text-highlighted">
+                            {{ item.total.toLocaleString('id-ID') }}
+                        </p>
+                    </div>
+                </div>
+
+                <div
+                    v-else
+                    class="rounded-lg border border-dashed border-default px-4 py-6 text-center text-sm text-muted"
+                >
+                    Belum ada kategori yang terhubung ke post.
+                </div>
+            </div>
+        </UCard>
     </div>
 </template>
