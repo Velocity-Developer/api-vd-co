@@ -836,8 +836,10 @@ const selectRecommendedImage = async (
             },
         );
 
-        if (!state.image_caption.trim() && recommendedImage.description) {
-            state.image_caption = recommendedImage.description;
+        if (recommendedImage.description) {
+            state.image_caption = recommendedImage.author_name
+                ? `Foto oleh ${recommendedImage.author_name} di Unsplash`
+                : recommendedImage.description;
         }
 
         statusMessage.value = 'Gambar rekomendasi berhasil dipilih.';
@@ -1384,7 +1386,7 @@ onMounted(async () => {
                     <div
                         v-for="recommendedImage in recommendedImages"
                         :key="recommendedImage.id"
-                        class="overflow-hidden rounded-lg border border-default bg-default"
+                        class="overflow-hidden group relative rounded-lg border border-default bg-default"
                     >
                         <img
                             :src="recommendedImage.thumb_url"
@@ -1395,9 +1397,9 @@ onMounted(async () => {
                             class="aspect-video w-full object-cover"
                         />
 
-                        <div class="space-y-3 p-4">
+                        <div class="opacity-0 group-hover:opacity-100 absolute bottom-0 left-0 right-0 space-y-3 p-4 bg-linear-to-b from-gray-900 to-transparent">
                             <div class="space-y-1">
-                                <p class="line-clamp-2 text-sm text-highlighted">
+                                <p class="line-clamp-2 truncate text-sm text-white">
                                     {{
                                         recommendedImage.description ??
                                         'Untitled image'
@@ -1405,7 +1407,7 @@ onMounted(async () => {
                                 </p>
                                 <p
                                     v-if="recommendedImage.author_name"
-                                    class="text-xs text-muted"
+                                    class="text-xs text-gray-300"
                                 >
                                     by {{ recommendedImage.author_name }}
                                 </p>
@@ -1414,7 +1416,6 @@ onMounted(async () => {
                             <UButton
                                 type="button"
                                 color="primary"
-                                variant="soft"
                                 icon="i-lucide-check"
                                 label="Use Image"
                                 block
