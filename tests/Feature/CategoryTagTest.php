@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Post;
 use App\Models\Tag;
+use App\Models\User;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\TagSeeder;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +14,7 @@ test('categories and tags tables have the expected columns', function () {
         'name',
         'slug',
         'description',
+        'export_counter',
         'created_at',
         'updated_at',
     ]))->toBeTrue()
@@ -67,4 +69,23 @@ test('category and tag seeders create default taxonomy data once', function () {
         ->and(Category::where('slug', 'olahraga')->count())->toBe(1)
         ->and(Tag::where('slug', 'breaking-news')->count())->toBe(1)
         ->and(Tag::where('slug', 'sepak-bola')->count())->toBe(1);
+});
+
+test('category store ignores export counter from user input', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson('/api/categories', [
+            'name' => 'Kategori Baru',
+            'slug' => 'kategori-baru',
+            'description' => 'Deskripsi kategori.',
+            'export_counter' => 88,
+        ])
+        ->assertCreated();
+
+    $this->assertDatabaseHas('categories', [
+        'name' => 'Kategori Baru',
+        'slug' => 'kategori-baru',
+        'export_counter' => 0,
+    ]);
 });

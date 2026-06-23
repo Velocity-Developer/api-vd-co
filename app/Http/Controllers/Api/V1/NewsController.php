@@ -72,6 +72,8 @@ class NewsController extends Controller
             ],
         );
 
+        $this->incrementExportCounters($posts->items(), $validated['category_id'] ?? null);
+
         return response()->json([
             'status' => true,
             'message' => 'Success',
@@ -83,5 +85,23 @@ class NewsController extends Controller
                 'total' => $posts->total(),
             ],
         ]);
+    }
+
+    /**
+     * @param  array<int, Post>  $posts
+     */
+    private function incrementExportCounters(array $posts, ?int $categoryId): void
+    {
+        if ($posts !== []) {
+            Post::query()
+                ->whereKey(array_map(fn (Post $post): int => $post->getKey(), $posts))
+                ->increment('export_counter');
+        }
+
+        if ($categoryId !== null) {
+            Category::query()
+                ->whereKey($categoryId)
+                ->increment('export_counter');
+        }
     }
 }

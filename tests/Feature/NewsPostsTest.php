@@ -81,6 +81,43 @@ test('news posts can skip the latest posts', function () {
         ->assertJsonPath('pagination.total', 3);
 });
 
+test('news posts increments export counters for returned posts and selected category', function () {
+    $license = License::factory()->create([
+        'expires_at' => now()->addDay(),
+    ]);
+    $selectedCategory = Category::factory()->create([
+        'export_counter' => 2,
+    ]);
+    $otherCategory = Category::factory()->create([
+        'export_counter' => 5,
+    ]);
+    $firstPost = Post::factory()->create([
+        'created_at' => now()->subMinute(),
+        'export_counter' => 3,
+    ]);
+    $secondPost = Post::factory()->create([
+        'created_at' => now(),
+        'export_counter' => 7,
+    ]);
+    $outsidePost = Post::factory()->create([
+        'export_counter' => 11,
+    ]);
+
+    $selectedCategory->posts()->attach([$firstPost->id, $secondPost->id]);
+    $otherCategory->posts()->attach($outsidePost);
+
+    $this->withHeader('License', $license->code)
+        ->getJson("/api/v1/news/posts?category_id={$selectedCategory->id}&post_per_page=10")
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+
+    expect($firstPost->fresh()->export_counter)->toBe(4)
+        ->and($secondPost->fresh()->export_counter)->toBe(8)
+        ->and($outsidePost->fresh()->export_counter)->toBe(11)
+        ->and($selectedCategory->fresh()->export_counter)->toBe(3)
+        ->and($otherCategory->fresh()->export_counter)->toBe(5);
+});
+
 test('news posts validates its filters', function () {
     $license = License::factory()->create([
         'expires_at' => now()->addDay(),

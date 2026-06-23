@@ -19,6 +19,7 @@ test('posts table has the expected columns', function () {
         'excerpt',
         'content',
         'published_at',
+        'export_counter',
         'created_at',
         'updated_at',
     ]))->toBeTrue();
@@ -103,6 +104,7 @@ test('store normalizes slug with str slug before saving', function () {
             'title' => 'Store Post',
             'slug' => 'Slug Campur Spasi & Simbol',
             'content' => 'Isi artikel untuk pengujian.',
+            'export_counter' => 99,
         ])
         ->assertCreated()
         ->assertJsonPath('data.slug', 'slug-campur-spasi-simbol');
@@ -110,6 +112,7 @@ test('store normalizes slug with str slug before saving', function () {
     $this->assertDatabaseHas('posts', [
         'title' => 'Store Post',
         'slug' => 'slug-campur-spasi-simbol',
+        'export_counter' => 0,
     ]);
 });
 
@@ -129,6 +132,26 @@ test('update normalizes slug with str slug before saving', function () {
     $this->assertDatabaseHas('posts', [
         'id' => $post->id,
         'slug' => 'slug-baru-dengan-spasi',
+    ]);
+});
+
+test('update ignores export counter from user input', function () {
+    $user = User::factory()->create();
+    $post = Post::factory()->for($user)->create([
+        'export_counter' => 4,
+    ]);
+
+    $this->actingAs($user)
+        ->putJson('/api/posts/'.$post->id, [
+            'title' => 'Judul Baru',
+            'export_counter' => 99,
+        ])
+        ->assertOk();
+
+    $this->assertDatabaseHas('posts', [
+        'id' => $post->id,
+        'title' => 'Judul Baru',
+        'export_counter' => 4,
     ]);
 });
 
