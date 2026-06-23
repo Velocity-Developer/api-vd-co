@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
-import type { EditorToolbarItem, FormError, FormSubmitEvent } from '@nuxt/ui';
+import type { EditorToolbarItem, FormError } from '@nuxt/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { generate as generateArticle } from '@/actions/App/Http/Controllers/ArticleGeneratorController';
@@ -71,6 +71,18 @@ type GeneratedArticle = {
     tags?: string[];
 };
 
+type RecommendedImage = {
+    id: string;
+    description: string | null;
+    thumb_url: string;
+    regular_url: string;
+    author_name: string | null;
+};
+
+type RecommendedImageSearchState = {
+    query: string;
+};
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -118,8 +130,17 @@ const aiFormMessage = ref<string | null>(null);
 const aiResult = ref<GeneratedArticle | null>(null);
 const aiRawResult = ref<string | null>(null);
 const aiServerErrors = ref<Record<string, string>>({});
+const isImageRecommendedModalOpen = ref(false);
+const isSearchingRecommendedImages = ref(false);
+const isApplyingRecommendedImage = ref(false);
+const recommendedImages = ref<RecommendedImage[]>([]);
+const recommendedImagesError = ref<string | null>(null);
+const selectedRecommendedImageId = ref<string | null>(null);
 const topicState = reactive<TopicFormState>({
     topic: '',
+});
+const recommendedImageSearchState = reactive<RecommendedImageSearchState>({
+    query: '',
 });
 
 const title = computed(() => (isEdit.value ? 'Edit Post' : 'Create Post'));
@@ -315,6 +336,18 @@ const validateTopic = (formState: Partial<TopicFormState>): FormError[] => {
     return errors;
 };
 
+const validateRecommendedImageSearch = (
+    formState: Partial<RecommendedImageSearchState>,
+): FormError[] => {
+    const errors: FormError[] = [];
+
+    if (!formState.query?.trim()) {
+        errors.push({ name: 'query', message: 'Kata kunci wajib diisi.' });
+    }
+
+    return errors;
+};
+
 const fieldError = (name: string): string | undefined => {
     return serverErrors.value[name];
 };
@@ -345,6 +378,12 @@ const resetAiGenerator = (): void => {
     aiResult.value = null;
     aiRawResult.value = null;
     aiServerErrors.value = {};
+};
+
+const resetRecommendedImages = (): void => {
+    recommendedImages.value = [];
+    recommendedImagesError.value = null;
+    selectedRecommendedImageId.value = null;
 };
 
 const fillForm = (postData: Post): void => {
@@ -643,9 +682,28 @@ const closeGenerateModal = (): void => {
     resetAiGenerator();
 };
 
-const submitGenerateArticle = async (
-    _event: FormSubmitEvent<TopicFormState>,
-): Promise<void> => {
+const openRecommendedImagesModal = async (): Promise<void> => {
+    resetRecommendedImages();
+    recommendedImageSearchState.query = state.title.trim() || state.slug.trim();
+    isImageRecommendedModalOpen.value = true;
+
+    if (!recommendedImageSearchState.query) {
+        return;
+    }
+
+    await searchRecommendedImages();
+};
+
+const closeRecommendedImagesModal = (): void => {
+    if (isSearchingRecommendedImages.value || isApplyingRecommendedImage.value) {
+        return;
+    }
+
+    isImageRecommendedModalOpen.value = false;
+    resetRecommendedImages();
+};
+
+const submitGenerateArticle = async (): Promise<void> => {
     isGenerating.value = true;
     aiFormMessage.value = null;
     aiResult.value = null;
@@ -685,6 +743,112 @@ const useGeneratedArticle = (): void => {
     statusMessage.value = 'Hasil artikel AI berhasil dimasukkan ke form.';
     isGenerateModalOpen.value = false;
     resetAiGenerator();
+};
+
+const searchRecommendedImages = async (): Promise<void> => {
+    const query = recommendedImageSearchState.query.trim();
+
+    if (!query) {
+        recommendedImages.value = [];
+        recommendedImagesError.value = 'Masukkan kata kunci untuk mencari gambar.';
+
+        return;
+    }
+
+    isSearchingRecommendedImages.value = true;
+    recommendedImagesError.value = null;
+    selectedRecommendedImageId.value = null;
+
+    try {
+        const response = await axios.get<CollectionResponse<RecommendedImage>>(
+            '/ajax/posts/recommended-images',
+            {
+                params: {
+                    query,
+                },
+            },
+        );
+
+        recommendedImages.value = response.data.data;
+
+        if (recommendedImages.value.length === 0) {
+            recommendedImagesError.value =
+                'Belum ada gambar yang cocok untuk kata kunci tersebut.';
+        }
+    } catch (error) {
+        if (error instanceof AxiosError && error.response?.status === 422) {
+            recommendedImagesError.value =
+                'Kata kunci pencarian belum valid. Silakan periksa lagi.';
+
+            return;
+        }
+
+        recommendedImagesError.value =
+            'Daftar gambar rekomendasi gagal dimuat.';
+    } finally {
+        isSearchingRecommendedImages.value = false;
+    }
+};
+
+const selectRecommendedImage = async (
+    recommendedImage: RecommendedImage,
+): Promise<void> => {
+    isApplyingRecommendedImage.value = true;
+    recommendedImagesError.value = null;
+    selectedRecommendedImageId.value = recommendedImage.id;
+
+    try {
+        const response = await axios.post<Blob>(
+            '/ajax/posts/recommended-image',
+            {
+                url: recommendedImage.regular_url,
+                file_name:
+                    (recommendedImage.description ?? state.slug) ||
+                    'unsplash-image',
+            },
+            {
+                responseType: 'blob',
+            },
+        );
+
+        const contentTypeHeader = response.headers['content-type'];
+        const contentType =
+            typeof contentTypeHeader === 'string'
+                ? contentTypeHeader
+                : Array.isArray(contentTypeHeader)
+                  ? contentTypeHeader.join('; ')
+                  : 'image/jpeg';
+        const extension = contentType.includes('png')
+            ? 'png'
+            : contentType.includes('webp')
+              ? 'webp'
+              : contentType.includes('gif')
+                ? 'gif'
+                : 'jpg';
+        const fileNameBase =
+            recommendedImage.description?.trim() || state.slug || 'unsplash-image';
+
+        image.value = new File(
+            [response.data],
+            `${slugify(fileNameBase) || 'unsplash-image'}.${extension}`,
+            {
+                type: contentType,
+            },
+        );
+
+        if (!state.image_caption.trim() && recommendedImage.description) {
+            state.image_caption = recommendedImage.description;
+        }
+
+        statusMessage.value = 'Gambar rekomendasi berhasil dipilih.';
+        isImageRecommendedModalOpen.value = false;
+        resetRecommendedImages();
+    } catch {
+        recommendedImagesError.value =
+            'Gambar rekomendasi gagal dipakai sebagai image post.';
+    } finally {
+        isApplyingRecommendedImage.value = false;
+    }
 };
 
 const submit = async (): Promise<void> => {
@@ -929,14 +1093,28 @@ onMounted(async () => {
                     hint="Optional"
                     :error="fieldError('image_caption')"
                 >
-                    <UTextarea
-                        v-model="state.image_caption"
-                        placeholder="Caption for the featured image"
-                        :rows="2"
-                        autoresize
-                        :disabled="isSaving"
-                        class="w-full"
-                    />
+                    <div class="space-y-3">
+                        <UTextarea
+                            v-model="state.image_caption"
+                            placeholder="Caption for the featured image"
+                            :rows="2"
+                            autoresize
+                            :disabled="isSaving"
+                            class="w-full"
+                        />
+
+                        <div class="flex justify-end">
+                            <UButton
+                                type="button"
+                                color="neutral"
+                                variant="outline"
+                                icon="i-lucide-images"
+                                label="Image Recommended"
+                                :disabled="isSaving"
+                                @click="openRecommendedImagesModal"
+                            />
+                        </div>
+                    </div>
                 </UFormField>
 
                 <UFormField
@@ -1134,6 +1312,134 @@ onMounted(async () => {
                     icon="i-lucide-sparkles"
                     label="Generate"
                     :loading="isGenerating"
+                />
+            </template>
+        </UModal>
+
+        <UModal
+            v-model:open="isImageRecommendedModalOpen"
+            title="Image Recommended"
+            description="Cari gambar dari Unsplash lalu pilih satu untuk langsung dipakai sebagai image post."
+            :ui="{ content: 'sm:max-w-7xl', footer: 'justify-end' }"
+        >
+            <template #body>
+                <UAlert
+                    v-if="recommendedImagesError"
+                    color="error"
+                    variant="soft"
+                    icon="i-lucide-circle-alert"
+                    title="Ada masalah"
+                    :description="recommendedImagesError"
+                    class="mb-4"
+                />
+
+                <UForm
+                    id="recommended-image-form"
+                    :state="recommendedImageSearchState"
+                    :validate="validateRecommendedImageSearch"
+                    class="space-y-4"
+                    @submit="searchRecommendedImages"
+                >
+                    <UFormField
+                        name="query"
+                        label="Keyword"
+                        required
+                    >
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <UInput
+                                v-model="recommendedImageSearchState.query"
+                                placeholder="Contoh: modern office, laravel coding, blog cover"
+                                :disabled="
+                                    isSearchingRecommendedImages ||
+                                    isApplyingRecommendedImage
+                                "
+                                class="w-full"
+                            />
+
+                            <UButton
+                                type="submit"
+                                icon="i-lucide-search"
+                                label="Search"
+                                :loading="isSearchingRecommendedImages"
+                            />
+                        </div>
+                    </UFormField>
+                </UForm>
+
+                <div
+                    v-if="isSearchingRecommendedImages"
+                    class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                    <USkeleton
+                        v-for="item in 6"
+                        :key="item"
+                        class="h-64 w-full rounded-lg"
+                    />
+                </div>
+
+                <div
+                    v-else-if="recommendedImages.length > 0"
+                    class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                    <div
+                        v-for="recommendedImage in recommendedImages"
+                        :key="recommendedImage.id"
+                        class="overflow-hidden rounded-lg border border-default bg-default"
+                    >
+                        <img
+                            :src="recommendedImage.thumb_url"
+                            :alt="
+                                recommendedImage.description ??
+                                'Recommended Unsplash image'
+                            "
+                            class="aspect-video w-full object-cover"
+                        />
+
+                        <div class="space-y-3 p-4">
+                            <div class="space-y-1">
+                                <p class="line-clamp-2 text-sm text-highlighted">
+                                    {{
+                                        recommendedImage.description ??
+                                        'Untitled image'
+                                    }}
+                                </p>
+                                <p
+                                    v-if="recommendedImage.author_name"
+                                    class="text-xs text-muted"
+                                >
+                                    by {{ recommendedImage.author_name }}
+                                </p>
+                            </div>
+
+                            <UButton
+                                type="button"
+                                color="primary"
+                                variant="soft"
+                                icon="i-lucide-check"
+                                label="Use Image"
+                                block
+                                :loading="
+                                    isApplyingRecommendedImage &&
+                                    selectedRecommendedImageId ===
+                                        recommendedImage.id
+                                "
+                                :disabled="isApplyingRecommendedImage"
+                                @click="selectRecommendedImage(recommendedImage)"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template #footer>
+                <UButton
+                    label="Close"
+                    color="neutral"
+                    variant="outline"
+                    :disabled="
+                        isSearchingRecommendedImages || isApplyingRecommendedImage
+                    "
+                    @click="closeRecommendedImagesModal"
                 />
             </template>
         </UModal>

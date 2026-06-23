@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\PostResource;
 use App\Models\Post;
+use App\Services\UnsplashService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PostController extends Controller
@@ -29,9 +33,9 @@ class PostController extends Controller
             ->with(['user:id,name,email', 'categories:id,name,slug', 'tags:id,name,slug'])
             ->when(
                 array_key_exists('category_id', $validated) && $validated['category_id'] !== null,
-                fn($query) => $query->whereHas(
+                fn ($query) => $query->whereHas(
                     'categories',
-                    fn($categoryQuery) => $categoryQuery->whereKey($validated['category_id'])
+                    fn ($categoryQuery) => $categoryQuery->whereKey($validated['category_id'])
                 ),
             )
             ->latest()
@@ -84,6 +88,85 @@ class PostController extends Controller
         return PostResource::make($post->load(['user:id,name,email', 'categories:id,name,slug', 'tags:id,name,slug']));
     }
 
+    public function recommendedImages(Request $request, UnsplashService $unsplashService): JsonResponse
+    {
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:30'],
+        ]);
+
+        $result = $unsplashService->searchPhotos(
+            $validated['query'],
+            1,
+            $validated['per_page'] ?? 12,
+        );
+
+        $images = collect($result['results'] ?? [])
+            ->map(fn (array $photo): array => [
+                'id' => $photo['id'] ?? null,
+                'description' => $photo['description'] ?? $photo['alt_description'] ?? null,
+                'thumb_url' => Arr::get($photo, 'urls.thumb'),
+                'regular_url' => Arr::get($photo, 'urls.regular'),
+                'author_name' => Arr::get($photo, 'user.name'),
+            ])
+            ->filter(fn (array $photo): bool => filled($photo['id']) && filled($photo['thumb_url']) && filled($photo['regular_url']))
+            ->values();
+
+        return response()->json([
+            'data' => $images,
+        ]);
+    }
+
+    public function recommendedImage(Request $request): Response
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'url', 'max:2048'],
+            'file_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $host = (string) parse_url($validated['url'], PHP_URL_HOST);
+        $allowedHosts = ['images.unsplash.com', 'plus.unsplash.com'];
+
+        if (! in_array($host, $allowedHosts, true)) {
+            throw ValidationException::withMessages([
+                'url' => 'Only Unsplash image URLs are allowed.',
+            ]);
+        }
+
+        $response = Http::accept('image/*')
+            ->timeout(20)
+            ->get($validated['url'])
+            ->throw();
+
+        $contentType = (string) $response->header('Content-Type');
+
+        if (! str_starts_with($contentType, 'image/')) {
+            throw ValidationException::withMessages([
+                'url' => 'The selected URL did not return an image.',
+            ]);
+        }
+
+        $extension = match ($contentType) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            default => 'jpg',
+        };
+
+        $fileName = Str::slug(
+            pathinfo($validated['file_name'] ?? 'unsplash-image', PATHINFO_FILENAME),
+        );
+
+        if ($fileName === '') {
+            $fileName = 'unsplash-image';
+        }
+
+        return response($response->body(), 200, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => sprintf('inline; filename="%s.%s"', $fileName, $extension),
+        ]);
+    }
+
     /**
      * Display public post cards.
      */
@@ -96,7 +179,7 @@ class PostController extends Controller
 
         $imageUrls = $posts
             ->getCollection()
-            ->mapWithKeys(fn(Post $post): array => [
+            ->mapWithKeys(fn (Post $post): array => [
                 $post->id => $this->imageUrl($post->image),
             ]);
 
@@ -177,7 +260,7 @@ class PostController extends Controller
 
     private function storeImage(Request $request): string
     {
-        return $request->file('image')->store('post/' . now()->format('y-m'), 'public');
+        return $request->file('image')->store('post/'.now()->format('y-m'), 'public');
     }
 
     private function deleteImage(Post $post): void

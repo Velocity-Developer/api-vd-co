@@ -8,8 +8,10 @@ use App\Models\RequestLog;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Website;
+use App\Services\UnsplashService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -87,6 +89,57 @@ test('post controller updates and deletes a post', function () {
 
     $this->assertDatabaseMissing('posts', ['id' => $post->id]);
     Storage::disk('public')->assertMissing($post->image);
+});
+
+test('post controller returns recommended unsplash images', function () {
+    $unsplashService = Mockery::mock(UnsplashService::class);
+    $unsplashService->shouldReceive('searchPhotos')
+        ->once()
+        ->with('laravel api', 1, 12)
+        ->andReturn([
+            'results' => [
+                [
+                    'id' => 'photo-1',
+                    'description' => 'Laravel workspace',
+                    'urls' => [
+                        'thumb' => 'https://images.unsplash.com/photo-1-thumb',
+                        'regular' => 'https://images.unsplash.com/photo-1-regular',
+                    ],
+                    'user' => [
+                        'name' => 'Taylor',
+                    ],
+                ],
+            ],
+        ]);
+
+    $this->app->instance(UnsplashService::class, $unsplashService);
+
+    $this->getJson('/ajax/posts/recommended-images?query=laravel%20api')
+        ->assertOk()
+        ->assertJsonPath('data.0.id', 'photo-1')
+        ->assertJsonPath('data.0.description', 'Laravel workspace')
+        ->assertJsonPath('data.0.thumb_url', 'https://images.unsplash.com/photo-1-thumb')
+        ->assertJsonPath('data.0.regular_url', 'https://images.unsplash.com/photo-1-regular')
+        ->assertJsonPath('data.0.author_name', 'Taylor');
+});
+
+test('post controller returns selected unsplash image as a downloadable file', function () {
+    Http::fake([
+        'images.unsplash.com/*' => Http::response('image-binary', 200, [
+            'Content-Type' => 'image/jpeg',
+        ]),
+    ]);
+
+    $response = $this->postJson('/ajax/posts/recommended-image', [
+        'url' => 'https://images.unsplash.com/photo-123?fit=crop&w=1200',
+        'file_name' => 'Laravel Workspace',
+    ]);
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/jpeg')
+        ->assertHeader('Content-Disposition', 'inline; filename="laravel-workspace.jpg"');
+
+    expect($response->getContent())->toBe('image-binary');
 });
 
 test('category controller stores updates and deletes a category', function () {
