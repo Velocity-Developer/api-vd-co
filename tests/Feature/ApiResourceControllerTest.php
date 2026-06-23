@@ -105,6 +105,7 @@ test('post controller returns recommended unsplash images', function () {
                     'description' => 'Laravel workspace',
                     'urls' => [
                         'thumb' => 'https://images.unsplash.com/photo-1-thumb',
+                        'small' => 'https://images.unsplash.com/photo-1-small',
                         'regular' => 'https://images.unsplash.com/photo-1-regular',
                     ],
                     'user' => [
@@ -121,6 +122,7 @@ test('post controller returns recommended unsplash images', function () {
         ->assertJsonPath('data.0.id', 'photo-1')
         ->assertJsonPath('data.0.description', 'Laravel workspace')
         ->assertJsonPath('data.0.thumb_url', 'https://images.unsplash.com/photo-1-thumb')
+        ->assertJsonPath('data.0.small_url', 'https://images.unsplash.com/photo-1-small')
         ->assertJsonPath('data.0.regular_url', 'https://images.unsplash.com/photo-1-regular')
         ->assertJsonPath('data.0.author_name', 'Taylor')
         ->assertJsonPath('meta.current_page', 2)

@@ -79,6 +79,7 @@ type RecommendedImage = {
     id: string;
     description: string | null;
     thumb_url: string;
+    small_url: string;
     regular_url: string;
     author_name: string | null;
 };
@@ -1464,25 +1465,26 @@ onMounted(async () => {
 
                 <div
                     v-else-if="recommendedImages.length > 0"
-                    class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                    class="mt-6 columns-1 gap-4 sm:columns-2 xl:columns-3"
                 >
                     <div
                         v-for="recommendedImage in recommendedImages"
                         :key="recommendedImage.id"
-                        class="overflow-hidden group relative rounded-lg border border-default bg-default"
+                        class="group relative mb-4 break-inside-avoid overflow-hidden rounded-2xl border border-default bg-default shadow-sm"
                     >
                         <img
-                            :src="recommendedImage.thumb_url"
+                            :src="recommendedImage.small_url"
                             :alt="
                                 recommendedImage.description ??
                                 'Recommended Unsplash image'
                             "
-                            class="aspect-video w-full object-cover"
+                            class="h-auto w-full bg-muted/30 object-contain transition duration-300 group-hover:scale-[1.01]"
+                            loading="lazy"
                         />
 
-                        <div class="opacity-0 group-hover:opacity-100 absolute bottom-0 left-0 right-0 space-y-3 p-4 bg-linear-to-b from-gray-900 to-transparent">
+                        <div class="absolute inset-x-0 bottom-0 space-y-3 bg-linear-to-t from-black/80 via-black/35 to-transparent p-4 opacity-0 transition group-hover:opacity-100">
                             <div class="space-y-1">
-                                <p class="line-clamp-2 truncate text-sm text-white">
+                                <p class="line-clamp-2 text-sm text-white">
                                     {{
                                         recommendedImage.description ??
                                         'Untitled image'

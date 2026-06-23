@@ -113,10 +113,11 @@ class PostController extends Controller
                 'id' => $photo['id'] ?? null,
                 'description' => $photo['description'] ?? $photo['alt_description'] ?? null,
                 'thumb_url' => Arr::get($photo, 'urls.thumb'),
+                'small_url' => Arr::get($photo, 'urls.small'),
                 'regular_url' => Arr::get($photo, 'urls.regular'),
                 'author_name' => Arr::get($photo, 'user.name'),
             ])
-            ->filter(fn (array $photo): bool => filled($photo['id']) && filled($photo['thumb_url']) && filled($photo['regular_url']))
+            ->filter(fn (array $photo): bool => filled($photo['id']) && filled($photo['small_url']) && filled($photo['regular_url']))
             ->values();
 
         $total = max((int) ($result['total'] ?? 0), 0);
