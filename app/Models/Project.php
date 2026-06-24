@@ -42,4 +42,12 @@ class Project extends Model
     {
         return $this->hasMany(self::class, 'parent_id');
     }
+
+    /**
+     * @return HasMany<ProjectChangelog, $this>
+     */
+    public function changelogs(): HasMany
+    {
+        return $this->hasMany(ProjectChangelog::class);
+    }
 }

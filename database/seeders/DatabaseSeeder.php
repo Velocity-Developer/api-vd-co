@@ -22,5 +22,6 @@ class DatabaseSeeder extends Seeder
         $this->call(WebsiteSeeder::class);
         $this->call(ServerSeeder::class);
         $this->call(RequestLogSeeder::class);
+        $this->call(ProjectChangelogSeeder::class);
     }
 }
