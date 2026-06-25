@@ -149,6 +149,7 @@ const lineY = (d: DailyRequestLog): number => d.total;
 const hoveredDailyLog = ref<DailyRequestLog | null>(null);
 const dailyTooltipPosition = ref({ x: 0, y: 0 });
 const dailyChartWrapper = ref<HTMLElement | null>(null);
+const dailyTooltipElement = ref<HTMLElement | null>(null);
 const dailyTooltip = (): string => '';
 const updateHoveredDailyLog = (
     _x?: number | Date,
@@ -172,8 +173,17 @@ const updateHoveredDailyLog = (
             const dotBounds = dot.getBoundingClientRect();
             const chartBounds = dailyChartWrapper.value.getBoundingClientRect();
 
+            const dotX =
+                dotBounds.left + dotBounds.width / 2 - chartBounds.left;
+            const tooltipHalfWidth =
+                (dailyTooltipElement.value?.offsetWidth ?? 160) / 2;
+            const safeX = Math.min(
+                Math.max(dotX, tooltipHalfWidth + 12),
+                chartBounds.width - tooltipHalfWidth - 12,
+            );
+
             dailyTooltipPosition.value = {
-                x: dotBounds.left + dotBounds.width / 2 - chartBounds.left,
+                x: safeX,
                 y: dotBounds.top + dotBounds.height / 2 - chartBounds.top,
             };
         });
@@ -341,7 +351,7 @@ const topCategoryValueFormat = (tick: number | Date): string => {
                 <div class="space-y-4">
                     <div
                         ref="dailyChartWrapper"
-                        class="relative rounded-xl bg-muted/20 p-3"
+                        class="relative rounded-xl bg-muted/20 p-3 [--vis-crosshair-line-stroke-opacity:0]"
                         @mouseleave="hoveredDailyLog = null"
                     >
                         <VisXYContainer
@@ -397,7 +407,8 @@ const topCategoryValueFormat = (tick: number | Date): string => {
 
                         <div
                             v-if="hoveredDailyLog"
-                            class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-lg border border-default bg-default px-3 py-2 shadow-lg"
+                            ref="dailyTooltipElement"
+                            class="pointer-events-none absolute z-10 min-w-48 -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-lg border border-default bg-default px-3 py-2 whitespace-nowrap shadow-lg"
                             :style="{
                                 left: `${dailyTooltipPosition.x}px`,
                                 top: `${dailyTooltipPosition.y}px`,
