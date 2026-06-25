@@ -85,6 +85,7 @@ class GithubService
             return null;
         }
 
+        $normalizedVersion = $this->normalizeVersionTag($release['version_tag']);
         $isPrivateRepository = $this->isRepositoryPrivate($repository['owner'], $repository['repo']);
 
         if ($isPrivateRepository) {
@@ -95,7 +96,7 @@ class GithubService
             }
 
             $project->forceFill([
-                'version' => $release['version_tag'],
+                'version' => $normalizedVersion,
                 'package_external_url' => null,
                 'package_file' => $packageFile,
             ])->save();
@@ -104,7 +105,7 @@ class GithubService
         }
 
         $project->forceFill([
-            'version' => $release['version_tag'],
+            'version' => $normalizedVersion,
             'package_external_url' => $release['package_download_url'],
         ])->save();
 
@@ -206,5 +207,10 @@ class GithubService
         }
 
         Storage::disk('public')->delete($project->package_file);
+    }
+
+    private function normalizeVersionTag(string $versionTag): string
+    {
+        return preg_replace('/^[vV](?=\d)/', '', trim($versionTag)) ?: trim($versionTag);
     }
 }

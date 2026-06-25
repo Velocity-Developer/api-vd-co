@@ -21,7 +21,7 @@ test('github service syncs the latest release into the project version and packa
             'private' => false,
         ], 200),
         'https://api.github.com/repos/example/velocity-addons/releases/latest' => Http::response([
-            'tag_name' => '2.4.0',
+            'tag_name' => 'v2.4.0',
             'name' => 'Velocity Addons 2.4.0',
             'published_at' => '2026-06-25T08:00:00Z',
             'zipball_url' => 'https://api.github.com/repos/example/velocity-addons/zipball/2.4.0',
@@ -61,7 +61,7 @@ test('github service uploads the latest release package for a private repository
     Http::fake([
         'https://api.github.com/repos/example/private-addons' => Http::response([], 404),
         'https://api.github.com/repos/example/private-addons/releases/latest' => Http::response([
-            'tag_name' => '2.5.0',
+            'tag_name' => 'v2.5.0',
             'name' => 'Velocity Addons 2.5.0',
             'published_at' => '2026-06-25T08:00:00Z',
             'assets' => [
