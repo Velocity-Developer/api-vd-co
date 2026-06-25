@@ -76,7 +76,7 @@
             "@php artisan test"
         ],
         "build:production": [
-            "@php artisan build:package --output=dist/api-vd-co.{version}.zip --force --no-interaction"
+            "@php artisan build:package --force --no-interaction"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

@@ -11,7 +11,7 @@ use RecursiveIteratorIterator;
 use Symfony\Component\Process\Process;
 use ZipArchive;
 
-#[Signature('build:package {--output=dist/api-vd-co.{version}.zip} {--force}')]
+#[Signature('build:package {--output=} {--force}')]
 #[Description('Build package update dari aplikasi saat ini')]
 class BuildPackage extends Command
 {
@@ -23,9 +23,9 @@ class BuildPackage extends Command
             return self::FAILURE;
         }
 
-        $outputPath = $this->resolveOutputPath((string) $this->option('output'));
+        $outputPath = $this->resolveOutputPath((string) ($this->option('output') ?? ''));
         $distDir = dirname($outputPath);
-        $tempDir = $distDir.DIRECTORY_SEPARATOR.'temp-package';
+        $tempDir = $distDir . DIRECTORY_SEPARATOR . 'temp-package';
 
         if (basename($distDir) !== 'dist') {
             $this->error('Output harus di folder dist.');
@@ -50,7 +50,7 @@ class BuildPackage extends Command
 
         File::deleteDirectory($tempDir);
 
-        $this->info('Package created: '.$outputPath);
+        $this->info('Package created: ' . $outputPath);
 
         return self::SUCCESS;
     }
@@ -69,6 +69,10 @@ class BuildPackage extends Command
 
         $version = preg_replace('/[^0-9A-Za-z._-]+/', '-', ltrim(trim($version), 'vV')) ?: 'dev';
 
+        if ($outputPath === '') {
+            return 'dist/api-vd-co.' . $version . '.zip';
+        }
+
         return str_replace('{version}', $version, $outputPath);
     }
 
@@ -76,13 +80,50 @@ class BuildPackage extends Command
     {
         $excludes = [
             '.git',
+            '.github',
+            '.agents',
+            '.idea',
+            '.vscode',
+            '.zed',
+            '.fleet',
+            '.nova',
+            '.DS_Store',
+            '.editorconfig',
+            '.gitattributes',
+            '.gitignore',
+            '.prettierrc',
+            '.prettierignore',
+            '.npmrc',
+            '.phpactor.json',
+            '.phpunit.cache',
+            '.phpunit.result.cache',
+            '.fleet',
             'node_modules',
             'tests',
+            'stubs',
             'storage/logs',
             'storage/app/updates',
             'storage/app/backups',
+            'storage/framework/cache',
+            'storage/framework/sessions',
+            'storage/framework/testing',
+            'storage/framework/views',
+            'storage/pail',
             'dist',
             '.env',
+            'public/hot',
+            'public/fonts-manifest.dev.json',
+            'public/storage',
+            'vendor/_laravel_ide',
+            'auto-imports.d.ts',
+            'components.d.ts',
+            'AGENTS.md',
+            'boost.json',
+            'auth.json',
+            'Homestead.json',
+            'Homestead.yaml',
+            'npm-debug.log',
+            'yarn-error.log',
         ];
 
         $this->copyDirectory(base_path(), $tempDir, $excludes);
@@ -99,12 +140,12 @@ class BuildPackage extends Command
                 'bootstrap/cache',
             ] as $dir
         ) {
-            File::ensureDirectoryExists($tempDir.'/'.$dir);
-            File::put($tempDir.'/'.$dir.'/.gitkeep', '');
+            File::ensureDirectoryExists($tempDir . '/' . $dir);
+            File::put($tempDir . '/' . $dir . '/.gitkeep', '');
         }
 
-        if (File::exists($tempDir.'/public/install')) {
-            File::copyDirectory($tempDir.'/public/install', $tempDir.'/install');
+        if (File::exists($tempDir . '/public/install')) {
+            File::copyDirectory($tempDir . '/public/install', $tempDir . '/install');
         }
     }
 
@@ -119,16 +160,16 @@ class BuildPackage extends Command
 
         foreach ($iterator as $item) {
             $itemPath = $item->getPathname();
-            $relativePath = str_replace($source.DIRECTORY_SEPARATOR, '', $itemPath);
+            $relativePath = str_replace($source . DIRECTORY_SEPARATOR, '', $itemPath);
             $relativePath = str_replace('\\', '/', $relativePath);
 
             foreach ($excludes as $exclude) {
-                if ($relativePath === $exclude || str_starts_with($relativePath, $exclude.'/')) {
+                if ($relativePath === $exclude || str_starts_with($relativePath, $exclude . '/')) {
                     continue 2;
                 }
             }
 
-            $target = $dest.DIRECTORY_SEPARATOR.$relativePath;
+            $target = $dest . DIRECTORY_SEPARATOR . $relativePath;
             if ($item->isDir()) {
                 File::ensureDirectoryExists($target);
 
@@ -182,10 +223,10 @@ class BuildPackage extends Command
     {
         $process = Process::fromShellCommandline($command, base_path());
         $process->setTimeout(null);
-        $process->run(fn (string $type, string $buffer) => $this->output->write($buffer));
+        $process->run(fn(string $type, string $buffer) => $this->output->write($buffer));
 
         if (! $process->isSuccessful()) {
-            throw new \RuntimeException('Command failed: '.$command);
+            throw new \RuntimeException('Command failed: ' . $command);
         }
     }
 }

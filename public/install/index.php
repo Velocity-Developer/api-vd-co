@@ -1,5 +1,9 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
+
 error_reporting(isset($_GET['debug']) ? E_ALL : 0);
 ini_set('display_errors', isset($_GET['debug']) ? '1' : '0');
 
@@ -28,8 +32,13 @@ if (! $basePath || ! file_exists($basePath.'/artisan')) {
     exit('Root Laravel tidak ditemukan.');
 }
 
-$incomingRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
-$publicRoot = $incomingRoot;
+$incomingRoot = trim((string) ($_POST['source_path'] ?? $_GET['source_path'] ?? ''));
+if ($incomingRoot === '') {
+    $incomingRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
+} else {
+    $incomingRoot = realpath($incomingRoot) ?: $incomingRoot;
+}
+$publicRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
 $envPath = $basePath.'/.env';
 $lockPath = $basePath.'/storage/installer.lock';
 $debugLog = [
@@ -85,16 +94,55 @@ function phpBinary(): string
     return 'php';
 }
 
-function artisan(string $basePath, string $command): string
+function bootArtisanKernel(string $basePath)
 {
-    if (! function_exists('shell_exec')) {
-        return 'shell_exec disabled. Jalankan manual: php artisan '.$command;
+    static $kernel = null;
+
+    if ($kernel !== null) {
+        return $kernel;
     }
 
-    $php = phpBinary();
-    $artisan = escapeshellarg($basePath.'/artisan');
+    require_once $basePath.'/vendor/autoload.php';
 
-    return (string) @shell_exec($php.' '.$artisan.' '.$command.' 2>&1');
+    /** @var Application $app */
+    $app = require_once $basePath.'/bootstrap/app.php';
+
+    $kernel = $app->make(Kernel::class);
+    $kernel->bootstrap();
+
+    return $kernel;
+}
+
+function artisanCall(string $basePath, string $command, array $args = []): string
+{
+    if (function_exists('shell_exec')) {
+        $php = phpBinary();
+        $artisan = escapeshellarg($basePath.'/artisan');
+        $cli = $command;
+
+        foreach ($args as $key => $value) {
+            if (! str_starts_with($key, '--')) {
+                continue;
+            }
+
+            if ($value === true) {
+                $cli .= ' '.$key;
+            } elseif ($value !== false) {
+                $cli .= ' '.$key.'='.escapeshellarg((string) $value);
+            }
+        }
+
+        return (string) @shell_exec($php.' '.$artisan.' '.$cli.' 2>&1');
+    }
+
+    try {
+        bootArtisanKernel($basePath);
+        Artisan::call($command, $args);
+
+        return (string) Artisan::output();
+    } catch (Throwable $exception) {
+        return 'artisan call failed: '.$exception->getMessage();
+    }
 }
 
 function ensureParentDirectory(string $path): void
@@ -149,10 +197,10 @@ function copyDirectoryContents(string $source, string $target): void
     }
 }
 
-function replacePath(string $source, string $target): void
+function replacePath(string $source, string $target): bool
 {
     if (! file_exists($source) && ! is_link($source)) {
-        return;
+        return false;
     }
 
     if (file_exists($target) || is_link($target)) {
@@ -162,32 +210,65 @@ function replacePath(string $source, string $target): void
     ensureParentDirectory($target);
 
     if (@rename($source, $target)) {
-        return;
+        return true;
     }
 
     if (is_dir($source) && ! is_link($source)) {
         copyDirectoryContents($source, $target);
         deletePath($source);
 
-        return;
+        return file_exists($target);
     }
 
-    copy($source, $target);
-    @unlink($source);
+    if (@copy($source, $target)) {
+        @unlink($source);
+
+        return true;
+    }
+
+    return false;
+}
+
+function findPackageContentDir(string $incomingRoot, array $logs): array
+{
+    if (file_exists($incomingRoot.'/artisan') && is_dir($incomingRoot.'/public')) {
+        return [$incomingRoot, $logs];
+    }
+
+    foreach (array_diff(scandir($incomingRoot), ['.', '..']) as $name) {
+        $candidate = $incomingRoot.DIRECTORY_SEPARATOR.$name;
+        if (is_dir($candidate) && file_exists($candidate.'/artisan') && is_dir($candidate.'/public')) {
+            $logs[] = 'package content dir detected: '.$candidate;
+
+            return [$candidate, $logs];
+        }
+    }
+
+    return [$incomingRoot, $logs];
 }
 
 function syncSharedHostingStructure(string $incomingRoot, string $basePath, string $publicRoot): array
 {
-    $logs = [];
-    $incomingPublicDir = $incomingRoot.DIRECTORY_SEPARATOR.'public';
+    $logs = [
+        'sync start',
+        'incoming_root: '.$incomingRoot,
+        'base_path: '.$basePath,
+        'public_root: '.$publicRoot,
+    ];
 
     if (! is_dir($incomingRoot)) {
         throw new RuntimeException('Incoming root tidak ditemukan: '.$incomingRoot);
     }
 
+    [$incomingRoot, $logs] = findPackageContentDir($incomingRoot, $logs);
+    $incomingPublicDir = $incomingRoot.DIRECTORY_SEPARATOR.'public';
+
     if (! is_dir($incomingPublicDir)) {
         throw new RuntimeException('Folder public package tidak ditemukan: '.$incomingPublicDir);
     }
+
+    $logs[] = 'resolved incoming_root: '.$incomingRoot;
+    $movedCount = 0;
 
     $backendDirs = [
         'app',
@@ -213,37 +294,71 @@ function syncSharedHostingStructure(string $incomingRoot, string $basePath, stri
 
     foreach ($backendDirs as $name) {
         $source = $incomingRoot.DIRECTORY_SEPARATOR.$name;
+        $target = $basePath.DIRECTORY_SEPARATOR.$name;
         if (! file_exists($source)) {
+            $logs[] = 'backend dir missing: '.$source;
+
             continue;
         }
 
-        replacePath($source, $basePath.DIRECTORY_SEPARATOR.$name);
-        $logs[] = 'backend dir moved: '.$name;
+        $logs[] = 'backend dir move: '.$source.' -> '.$target;
+        $ok = replacePath($source, $target);
+        $logs[] = 'backend dir '.($ok ? 'done' : 'failed').': '.$name;
+        $movedCount += $ok ? 1 : 0;
     }
 
     foreach ($backendFiles as $name) {
         $source = $incomingRoot.DIRECTORY_SEPARATOR.$name;
+        $target = $basePath.DIRECTORY_SEPARATOR.$name;
         if (! file_exists($source)) {
+            $logs[] = 'backend file missing: '.$source;
+
             continue;
         }
 
-        replacePath($source, $basePath.DIRECTORY_SEPARATOR.$name);
-        $logs[] = 'backend file moved: '.$name;
+        $logs[] = 'backend file move: '.$source.' -> '.$target;
+        $ok = replacePath($source, $target);
+        $logs[] = 'backend file '.($ok ? 'done' : 'failed').': '.$name;
+        $movedCount += $ok ? 1 : 0;
     }
 
     foreach (array_diff(scandir($incomingPublicDir), ['.', '..']) as $name) {
         if (in_array($name, $publicSkip, true)) {
+            $logs[] = 'public skip: '.$name;
+
             continue;
         }
 
-        replacePath($incomingPublicDir.DIRECTORY_SEPARATOR.$name, $publicRoot.DIRECTORY_SEPARATOR.$name);
-        $logs[] = 'public moved: '.$name;
+        $source = $incomingPublicDir.DIRECTORY_SEPARATOR.$name;
+        $target = $publicRoot.DIRECTORY_SEPARATOR.$name;
+        $logs[] = 'public move: '.$source.' -> '.$target;
+        $ok = replacePath($source, $target);
+        $logs[] = 'public '.($ok ? 'done' : 'failed').': '.$name;
+        $movedCount += $ok ? 1 : 0;
     }
 
-    if (file_exists($incomingPublicDir.DIRECTORY_SEPARATOR.'.htaccess')) {
-        replacePath($incomingPublicDir.DIRECTORY_SEPARATOR.'.htaccess', $publicRoot.DIRECTORY_SEPARATOR.'.htaccess');
-        $logs[] = 'public moved: .htaccess';
+    $htaccessSource = $incomingPublicDir.DIRECTORY_SEPARATOR.'.htaccess';
+    $htaccessTarget = $publicRoot.DIRECTORY_SEPARATOR.'.htaccess';
+    if (file_exists($htaccessSource)) {
+        $logs[] = 'public move: '.$htaccessSource.' -> '.$htaccessTarget;
+        $ok = replacePath($htaccessSource, $htaccessTarget);
+        $logs[] = 'public '.($ok ? 'done' : 'failed').': .htaccess';
+        $movedCount += $ok ? 1 : 0;
+    } else {
+        $logs[] = 'public missing: '.$htaccessSource;
     }
+
+    if ($movedCount === 0) {
+        throw new RuntimeException('Tidak ada file/package yang dipindah. Periksa path folder package: '.$incomingRoot);
+    }
+
+    $staleHotFile = $publicRoot.DIRECTORY_SEPARATOR.'hot';
+    if (file_exists($staleHotFile)) {
+        @unlink($staleHotFile);
+        $logs[] = 'public removed stale: hot';
+    }
+
+    $logs[] = 'sync end | moved: '.$movedCount;
 
     return $logs;
 }
@@ -251,11 +366,11 @@ function syncSharedHostingStructure(string $incomingRoot, string $basePath, stri
 function runUpdateTasks(string $basePath): string
 {
     $logs = [];
-    $logs[] = artisan($basePath, 'down');
-    $logs[] = artisan($basePath, 'migrate --force');
-    $logs[] = artisan($basePath, 'storage:link');
-    $logs[] = artisan($basePath, 'optimize:clear');
-    $logs[] = artisan($basePath, 'up');
+    $logs[] = artisanCall($basePath, 'down');
+    $logs[] = artisanCall($basePath, 'migrate', ['--force' => true]);
+    $logs[] = artisanCall($basePath, 'storage:link');
+    $logs[] = artisanCall($basePath, 'optimize:clear');
+    $logs[] = artisanCall($basePath, 'up');
 
     return trim(implode("\n", array_filter($logs)));
 }
@@ -318,7 +433,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (! @file_put_contents($envPath, $env)) {
                     $result = ['ok' => false, 'message' => 'Gagal menulis .env. Pastikan root aplikasi writable.', 'logs' => implode("\n", [...$debugLog, ...$logs])];
                 } else {
-                    $logs[] = artisan($basePath, 'key:generate --force');
+                    $logs[] = artisanCall($basePath, 'key:generate', ['--force' => true]);
                     $logs[] = runUpdateTasks($basePath);
                     @file_put_contents($lockPath, date('Y-m-d H:i:s'));
                     $result = ['ok' => true, 'message' => 'Install selesai.', 'logs' => implode("\n", array_filter($logs))];
@@ -448,7 +563,10 @@ $defaultUrl = $scheme.'://'.($_SERVER['HTTP_HOST'] ?? 'localhost');
         <?php if (! ($result['ok'] ?? false) && $mode === 'update') { ?>
             <form method="post">
                 <input type="hidden" name="mode" value="update">
-                <p>Urutan update: pindah backend dari <code>public_html</code> ke folder <code>laravel</code>, pindah isi folder <code>public</code> ke <code>public_html</code>, lalu jalankan migrate dan clear cache.</p>
+                <p>Urutan update: pindah backend dari folder package ke folder <code>laravel</code>, pindah isi folder <code>public</code> ke <code>public_html</code>, lalu jalankan migrate dan clear cache.</p>
+                <label>Path folder package baru (berisi <code>artisan</code> & <code>public/</code>)
+                    <input name="source_path" value="<?= htmlspecialchars($incomingRoot) ?>" required>
+                </label>
                 <button type="submit">Jalankan Update</button>
             </form>
         <?php } ?>
@@ -456,7 +574,10 @@ $defaultUrl = $scheme.'://'.($_SERVER['HTTP_HOST'] ?? 'localhost');
         <?php if (! ($result['ok'] ?? false) && $mode !== 'update') { ?>
             <form method="post">
                 <input type="hidden" name="mode" value="install">
-                <p>Urutan install: pindah backend dari <code>public_html</code> ke folder <code>laravel</code>, pindah isi folder <code>public</code> ke <code>public_html</code>, buat <code>.env</code>, lalu generate key, migrate, dan clear cache.</p>
+                <p>Urutan install: pindah backend dari folder package ke folder <code>laravel</code>, pindah isi folder <code>public</code> ke <code>public_html</code>, buat <code>.env</code>, lalu generate key, migrate, dan clear cache.</p>
+                <label>Path folder package baru (berisi <code>artisan</code> & <code>public/</code>)
+                    <input name="source_path" value="<?= htmlspecialchars($incomingRoot) ?>" required>
+                </label>
                 <label>APP_NAME
                     <input name="app_name" value="API VD CO" required>
                 </label>
