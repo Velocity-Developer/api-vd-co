@@ -80,6 +80,10 @@ type ValidationResponse = {
     errors?: Record<string, string[]>;
 };
 
+type MessageResponse = {
+    message: string;
+};
+
 const noParentValue = '__none__';
 
 const props = defineProps<{
@@ -146,9 +150,12 @@ const isLoading = ref(false);
 const isModalOpen = ref(false);
 const isChangelogModalOpen = ref(false);
 const isSaving = ref(false);
+const syncingProjectId = ref<number | null>(null);
 const editingProjectId = ref<number | null>(null);
 const selectedChangelogProject = ref<Project | null>(null);
 const formMessage = ref<string | null>(null);
+const syncMessage = ref<string | null>(null);
+const syncMessageType = ref<'success' | 'error'>('success');
 const serverErrors = ref<Record<string, string>>({});
 const packageFile = ref<File | null>(null);
 const packageFileInput = ref<HTMLInputElement | null>(null);
@@ -489,6 +496,14 @@ const refreshProjects = (): void => {
     visitPage(currentPage.value);
 };
 
+const showSyncMessage = (
+    message: string,
+    type: 'success' | 'error',
+): void => {
+    syncMessage.value = message;
+    syncMessageType.value = type;
+};
+
 const storeProject = async (): Promise<Project> => {
     const response = await axios.post<ResourceResponse<Project>>(
         '/ajax/projects',
@@ -547,6 +562,32 @@ const markCurrentPackageForRemoval = (): void => {
 
 const keepCurrentPackageFile = (): void => {
     removePackageFile.value = false;
+};
+
+const syncGithubRelease = async (project: Project): Promise<void> => {
+    syncingProjectId.value = project.id;
+    syncMessage.value = null;
+
+    try {
+        const response = await axios.post<MessageResponse>(
+            `/ajax/projects/${project.id}/sync-github-release`,
+        );
+
+        showSyncMessage(response.data.message, 'success');
+        refreshProjects();
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            const message =
+                (error.response?.data as Partial<MessageResponse> | undefined)
+                    ?.message ?? 'Project gagal sync release GitHub.';
+
+            showSyncMessage(message, 'error');
+        } else {
+            showSyncMessage('Project gagal sync release GitHub.', 'error');
+        }
+    } finally {
+        syncingProjectId.value = null;
+    }
 };
 
 const submitProject = async (
@@ -646,6 +687,23 @@ watch(isChangelogModalOpen, (open) => {
 
     <div>
         <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
+            <UAlert
+                v-if="syncMessage"
+                :color="syncMessageType === 'success' ? 'success' : 'error'"
+                variant="soft"
+                :icon="
+                    syncMessageType === 'success'
+                        ? 'i-lucide-circle-check'
+                        : 'i-lucide-circle-alert'
+                "
+                :title="
+                    syncMessageType === 'success'
+                        ? 'GitHub release tersinkron'
+                        : 'Sync GitHub release gagal'
+                "
+                :description="syncMessage"
+            />
+
             <div
                 class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
@@ -772,11 +830,25 @@ watch(isChangelogModalOpen, (open) => {
                     <template #actions-cell="{ row }">
                         <div class="flex justify-end gap-1">
                             <UButton
+                                icon="i-lucide-cloud-download"
+                                color="success"
+                                variant="ghost"
+                                aria-label="Sync GitHub release"
+                                :disabled="
+                                    isLoading ||
+                                    isSaving ||
+                                    !row.original.github_url ||
+                                    syncingProjectId !== null
+                                "
+                                :loading="syncingProjectId === row.original.id"
+                                @click="syncGithubRelease(row.original)"
+                            />
+                            <UButton
                                 icon="i-lucide-scroll-text"
                                 color="primary"
                                 variant="ghost"
                                 aria-label="Manage project changelogs"
-                                :disabled="isLoading || isSaving"
+                                :disabled="isLoading || isSaving || syncingProjectId !== null"
                                 @click="openChangelogModal(row.original)"
                             />
                             <UButton
@@ -784,7 +856,7 @@ watch(isChangelogModalOpen, (open) => {
                                 color="neutral"
                                 variant="ghost"
                                 aria-label="Edit project"
-                                :disabled="isLoading || isSaving"
+                                :disabled="isLoading || isSaving || syncingProjectId !== null"
                                 @click="openEditModal(row.original)"
                             />
                         </div>

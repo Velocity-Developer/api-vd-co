@@ -43,6 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth'])->prefix('ajax')->group(function () {
     Route::get('posts/recommended-images', [PostController::class, 'recommendedImages']);
     Route::post('posts/recommended-image', [PostController::class, 'recommendedImage']);
+    Route::post('projects/{project}/sync-github-release', [ProjectController::class, 'syncGithubRelease']);
 
     Route::apiResources([
         'posts' => PostController::class,

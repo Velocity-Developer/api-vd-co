@@ -2,6 +2,7 @@
 
 use App\Models\Project;
 use App\Models\User;
+use App\Services\GithubService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -294,6 +295,64 @@ test('authenticated users can remove an existing package file', function () {
     expect($project->package_file)->toBeNull();
 
     Storage::disk('public')->assertMissing('project-packages/packaged-project/packaged-project-v1-0-0.zip');
+});
+
+test('authenticated users can sync a project github release', function () {
+    $user = User::factory()->create();
+    $project = Project::factory()->create([
+        'name' => 'Velocity Addons',
+        'slug' => 'velocity-addons',
+        'github_url' => 'https://github.com/example/velocity-addons',
+        'version' => '1.0.0',
+        'package_external_url' => 'https://downloads.example.com/original.zip',
+    ]);
+
+    $syncedProject = Project::factory()->make([
+        'id' => $project->id,
+        'name' => 'Velocity Addons',
+        'slug' => 'velocity-addons',
+        'type' => $project->type,
+        'github_url' => 'https://github.com/example/velocity-addons',
+        'version' => '2.5.0',
+        'package_file' => 'project-packages/velocity-addons/velocity-addons-2-5-0.zip',
+        'package_external_url' => null,
+        'parent_id' => $project->parent_id,
+        'plugin_wp_required' => $project->plugin_wp_required,
+        'requires_php' => $project->requires_php,
+        'requires_wp' => $project->requires_wp,
+        'description' => $project->description,
+        'created_at' => $project->created_at,
+        'updated_at' => now(),
+    ]);
+
+    $service = Mockery::mock(GithubService::class);
+    $service->shouldReceive('syncGithubProjectRelease')
+        ->once()
+        ->with($project->id)
+        ->andReturn($syncedProject);
+
+    app()->instance(GithubService::class, $service);
+
+    $this->actingAs($user)
+        ->post("/ajax/projects/{$project->id}/sync-github-release")
+        ->assertOk()
+        ->assertJsonPath('message', 'GitHub release synced successfully.')
+        ->assertJsonPath('data.id', $project->id)
+        ->assertJsonPath('data.version', '2.5.0')
+        ->assertJsonPath('data.package_external_url', null)
+        ->assertJsonPath('data.package_file', 'project-packages/velocity-addons/velocity-addons-2-5-0.zip');
+});
+
+test('authenticated users cannot sync github release when project has no github url', function () {
+    $user = User::factory()->create();
+    $project = Project::factory()->create([
+        'github_url' => null,
+    ]);
+
+    $this->actingAs($user)
+        ->post("/ajax/projects/{$project->id}/sync-github-release")
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Project must have a GitHub URL before syncing releases.');
 });
 
 test('project slug is normalized before saving', function () {

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use App\Services\GithubService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Storage;
@@ -56,6 +58,28 @@ class ProjectController extends Controller
     public function show(Project $project): ProjectResource
     {
         return ProjectResource::make($project->load('parent:id,name'));
+    }
+
+    public function syncGithubRelease(Project $project, GithubService $githubService): JsonResponse
+    {
+        if (blank($project->github_url)) {
+            return response()->json([
+                'message' => 'Project must have a GitHub URL before syncing releases.',
+            ], 422);
+        }
+
+        $syncedProject = $githubService->syncGithubProjectRelease($project->id);
+
+        if (! $syncedProject instanceof Project) {
+            return response()->json([
+                'message' => 'Unable to sync the latest GitHub release for this project.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'GitHub release synced successfully.',
+            'data' => ProjectResource::make($syncedProject->load('parent:id,name'))->resolve(),
+        ]);
     }
 
     /**
