@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -39,6 +40,8 @@ class DocsApiController extends Controller
             'routes' => $routes->toArray(),
             'groupedRoutes' => $groupedRoutes,
             'routePrefixes' => $routePrefixes,
+            'todaySignature' => md5(now()->format('dmY')),
+            'sampleProjectSlug' => Project::query()->value('slug'),
         ]);
     }
 }

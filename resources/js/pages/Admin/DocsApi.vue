@@ -1,38 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref } from 'vue';
-
-// Minimal md5 implementation to match PHP md5()
-function md5(input: string): string {
-    const hex = (n: number) => (n < 16 ? '0' : '') + n.toString(16);
-    const hash = (s: string) => {
-        const k = [];
-        for (let i = 0; i < 64; i++) {
-            k[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296);
-        }
-        let a = 1732584193, b = 4023233417, c = 2562383102, d = 271733878;
-        const w: number[] = [];
-        for (let i = 0; i < s.length * 8; i += 8) {
-            w[i >> 5] |= (s.charCodeAt(i / 8) & 255) << (i % 32);
-        }
-        w[s.length * 8 >> 5] |= 128 << ((s.length * 8) % 32);
-        w[((s.length * 8 + 64) >>> 9 << 4) + 14] = s.length * 8;
-        const f = (x: number, y: number, z: number, t: number) =>
-            [ (x & y) | (~x & z), (x & z) | (y & ~z), x ^ y ^ z, y ^ (x | ~z) ][t];
-        const sft = [7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21];
-        for (let i = 0; i < w.length; i += 16) {
-            const [aa, bb, cc, dd] = [a, b, c, d];
-            for (let j = 0; j < 64; j++) {
-                const t = (a + f(b, c, d, j >> 4) + w[i + (j < 16 ? j : j < 32 ? (5 * j + 1) % 16 : j < 48 ? (3 * j + 5) % 16 : (7 * j) % 16)] + k[j]) | 0;
-                a = d; d = c; c = b; b = (b + ((t << sft[(j >> 3 << 2) | (j & 3)]) | (t >>> (32 - sft[(j >> 3 << 2) | (j & 3)])))) | 0;
-            }
-            a = (a + aa) | 0; b = (b + bb) | 0; c = (c + cc) | 0; d = (d + dd) | 0;
-        }
-        return hex(a) + hex(b) + hex(c) + hex(d);
-    };
-    return hash(input);
-}
+import { computed, ref, watch } from 'vue';
 
 type RouteItem = {
     methods: string[];
@@ -53,6 +22,8 @@ const props = defineProps<{
     routes: RouteItem[];
     groupedRoutes: Record<string, RouteItem[]>;
     routePrefixes: string[];
+    todaySignature: string;
+    sampleProjectSlug: string | null;
 }>();
 
 interface ExpandedState {
@@ -65,13 +36,21 @@ const expandedGroups = ref<ExpandedState>(
 
 const loadingRoute = ref<string | null>(null);
 const requestBodies = ref<Record<string, string>>({});
-const requestParams = ref<Record<string, string>>({});
+const requestParams = ref<Record<string, string>>(getDefaultParams());
 const customHeaders = ref<Record<string, { key: string; value: string }[]>>({});
 
 // Modal state
 const showModal = ref(false);
 const modalRoute = ref<RouteItem | null>(null);
 const modalResult = ref<TestResult | null>(null);
+
+function getDefaultParams(): Record<string, string> {
+    const params: Record<string, string> = {};
+    if (props.sampleProjectSlug) {
+        params['api/v1/project/{slug}:slug'] = props.sampleProjectSlug;
+    }
+    return params;
+}
 
 const modalTitle = computed(() => {
     if (!modalRoute.value) return 'API Request';
@@ -108,11 +87,7 @@ function getDefaultHeaders(route: RouteItem): { key: string; value: string }[] {
     const headers: { key: string; value: string }[] = [];
 
     if (middleware.includes('public.ai.signature')) {
-        const today = new Date();
-        const d = String(today.getDate()).padStart(2, '0');
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const y = today.getFullYear();
-        headers.push({ key: 'signature', value: md5(`${d}${m}${y}`) });
+        headers.push({ key: 'signature', value: todaySignature() });
     }
 
     if (middleware.includes('license')) {
@@ -141,6 +116,27 @@ function removeHeader(route: RouteItem, index: number): void {
     const key = route.uri;
     customHeaders.value[key] = customHeaders.value[key].filter((_, i) => i !== index);
 }
+
+function todaySignature(): string {
+    return props.todaySignature;
+}
+
+// Auto-fill 'signature' header value when key changes to 'signature'
+watch(
+    customHeaders,
+    (headers) => {
+        for (const uri of Object.keys(headers)) {
+            const list = headers[uri];
+            if (!list) continue;
+            for (const h of list) {
+                if (h.key === 'signature' && h.value !== todaySignature()) {
+                    h.value = todaySignature();
+                }
+            }
+        }
+    },
+    { deep: true },
+);
 
 async function sendRequest(route: RouteItem): Promise<void> {
     const method = route.methods[0] || 'GET';
