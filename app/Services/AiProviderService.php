@@ -3,8 +3,6 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
-use JsonException;
-use RuntimeException;
 
 class AiProviderService
 {
@@ -23,9 +21,9 @@ class AiProviderService
     {
         // 1. Kirim POST request ke API Anda
         $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . config('services.ai_provider.key'),
+            'Authorization' => 'Bearer '.config('services.ai_provider.key'),
             'Content-Type' => 'application/json',
-        ])->post(config('services.ai_provider.url') . '/chat/completions', [
+        ])->post(config('services.ai_provider.url').'/chat/completions', [
             'model' => config('services.ai_provider.model'),
             'messages' => [
                 [
@@ -34,12 +32,12 @@ class AiProviderService
                 ],
                 [
                     'role' => 'user',
-                    'content' => 'Buatkan artikel menarik tentang: ' . $topic,
-                ]
+                    'content' => 'Buatkan artikel menarik tentang: '.$topic,
+                ],
             ],
             'stream' => $stream,
             'response_format' => [
-                'type' => 'json_object'
+                'type' => 'json_object',
             ],
         ]);
 
@@ -56,7 +54,8 @@ class AiProviderService
 
             return $article;
         }
-        return response()->array(['error' => 'Gagal generate artikel',], 500);
+
+        return response()->array(['error' => 'Gagal generate artikel'], 500);
     }
 
     /**
@@ -67,7 +66,7 @@ class AiProviderService
     {
         $prompt = 'Anda adalah mesin generator konten SEO profesional handal berbasis JSON. Tugas Anda adalah mengubah topik yang diberikan user menjadi objek JSON tunggal yang valid tanpa teks tambahan di luar JSON.';
         $prompt .= "Aturan Ketat: Tidak boleh ada teks tambahan atau keterangan di luar JSON. Jangan menulis kata pengantar seperti 'Berikut adalah artikel...', jangan beri salam, dan jangan beri teks penutup.";
-        $prompt .= "Output HARUS berupa JSON valid yang langsung bisa di-parse.";
+        $prompt .= 'Output HARUS berupa JSON valid yang langsung bisa di-parse.';
         $prompt .= "Format JSON wajib mengikuti struktur berikut:{'title' => 'Judul menarik, informatif, ramah SEO (maksimal 80 karakter)', 'content' => 'Isi artikel lengkap dan mendalam minimal 4 paragraf. Gunakan format tag HTML dasar seperti <p>, <h3>, dan <strong', 'excerpt' => 'Ringkasan singkat artikel dalam 2-3 kalimat untuk meta description (maksimal 160 karakter)', 'tags' => 'maksimal 5 array kata kunci pendek, 'image_keyword' => '1 kata kunci gambar dalam bahasa Inggris'}";
 
         return $prompt;

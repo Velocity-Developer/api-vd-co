@@ -24,6 +24,7 @@ import {
     servers,
     websites,
     requestlogsIndex,
+    docsApi,
 } from '@/routes';
 import {
     FileText,
@@ -39,6 +40,7 @@ import {
     Globe,
     ScrollText,
     RefreshCw,
+    BookMarked,
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -97,6 +99,11 @@ const mainNavItems: NavItem[] = [
         title: 'System Update',
         href: '/admin/system/update',
         icon: RefreshCw,
+    },
+    {
+        title: 'API Docs',
+        href: docsApi(),
+        icon: BookMarked,
     },
 ];
 

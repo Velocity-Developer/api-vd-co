@@ -75,12 +75,14 @@ class EnsurePublicAiSignature
                 ],
             );
 
-        $website->fill([
-            'ip_address' => $request->ip(),
-            'license_key' => $licenseKey !== '' ? $licenseKey : $website->license_key,
-            'wp_version' => $request->input('wp_version', $website->wp_version),
-            'php_version' => $request->input('php_version', $website->php_version),
-        ])->save();
+        if ($website !== null) {
+            $website->fill([
+                'ip_address' => $request->ip(),
+                'license_key' => $licenseKey !== '' ? $licenseKey : $website->license_key,
+                'wp_version' => $request->input('wp_version', $website->wp_version),
+                'php_version' => $request->input('php_version', $website->php_version),
+            ])->save();
+        }
 
         RequestLog::create([
             'route' => $request->getPathInfo(),
@@ -94,7 +96,7 @@ class EnsurePublicAiSignature
 
     private function websiteLicenseKey(string $resource): string
     {
-        return 'AI-PUBLIC-' . substr(md5($resource), 0, 24);
+        return 'AI-PUBLIC-'.substr(md5($resource), 0, 24);
     }
 
     private function statusCodeForException(Throwable $exception): int

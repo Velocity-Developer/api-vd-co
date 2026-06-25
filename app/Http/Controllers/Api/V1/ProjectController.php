@@ -147,8 +147,8 @@ class ProjectController extends Controller
         $name = $request->input('name');
         $version = $request->input('version');
         $file = $request->file('package_file');
-        $fileName = Str::slug($name) . '-' . Str::slug($version) . '.' . $file->getClientOriginalExtension();
-        $folder = 'project-packages/' . Str::slug($name);
+        $fileName = Str::slug($name).'-'.Str::slug($version).'.'.$file->getClientOriginalExtension();
+        $folder = 'project-packages/'.Str::slug($name);
 
         return $file->storeAs($folder, $fileName, 'public');
     }
@@ -166,7 +166,7 @@ class ProjectController extends Controller
     {
         $data = ProjectResource::make($project)->resolve($request);
         $downloadUrl = $data['package_external_url'] ?: $data['package_file_url'];
-        $changelogUrl = url('project/changelog/' . $project->slug);
+        $changelogUrl = url('project/changelog/'.$project->slug);
 
         return response()->json([
             'status' => true,

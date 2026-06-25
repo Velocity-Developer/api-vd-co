@@ -33,7 +33,7 @@ class ArticleGeneratorController extends Controller
         ]);
 
         $article = $articleGenerator->prompt(
-            'Buatkan artikel menarik tentang: ' . $validated['topic'],
+            'Buatkan artikel menarik tentang: '.$validated['topic'],
             timeout: 90,
         );
 
