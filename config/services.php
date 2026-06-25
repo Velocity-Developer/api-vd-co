@@ -46,4 +46,8 @@ return [
         'model' => env('AI_PROVIDER_MODEL', 'free.wsd'),
     ],
 
+    'github' => [
+        'url' => env('GITHUB_URL', 'https://api.github.com/'),
+        'token' => env('GITHUB_ACCESS_TOKEN'),
+    ],
 ];
