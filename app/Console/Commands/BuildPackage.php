@@ -102,6 +102,10 @@ class BuildPackage extends Command
             File::ensureDirectoryExists($tempDir.'/'.$dir);
             File::put($tempDir.'/'.$dir.'/.gitkeep', '');
         }
+
+        if (File::exists($tempDir.'/public/install')) {
+            File::copyDirectory($tempDir.'/public/install', $tempDir.'/install');
+        }
     }
 
     private function copyDirectory(string $source, string $dest, array $excludes): void
