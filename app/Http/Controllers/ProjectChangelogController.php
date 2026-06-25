@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ProjectChangelogResource;
+use App\Models\Project;
 use App\Models\ProjectChangelog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use App\Models\Project;
 
 class ProjectChangelogController extends Controller
 {
@@ -27,7 +27,7 @@ class ProjectChangelogController extends Controller
             ProjectChangelog::query()
                 ->when(
                     $validated['project_id'] ?? null,
-                    fn($query, int $projectId) => $query->where('project_id', $projectId),
+                    fn ($query, int $projectId) => $query->where('project_id', $projectId),
                 )
                 ->with('project:id,name,slug')
                 ->latest()
@@ -102,7 +102,6 @@ class ProjectChangelogController extends Controller
             ])),
         ];
     }
-
 
     /**
      * Display public post cards.

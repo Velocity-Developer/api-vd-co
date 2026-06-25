@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Resources\RequestLogResource;
 use App\Models\RequestLog;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Inertia\Inertia;
 
@@ -22,8 +21,9 @@ class RequestLogController extends Controller
                 ->latest()
                 ->paginate(),
         );
+
         return Inertia::render('RequestLogs', [
-            'requestLogs' => $requestLogs
+            'requestLogs' => $requestLogs,
         ]);
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\DocsApiController;
 use App\Http\Controllers\ArticleGeneratorController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -38,6 +39,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Route::inertia('admin/requestlogs', 'RequestLogs')->name('requestlogs');
 
     Route::get('admin/requestlogs', [RequestLogController::class, 'index'])->name('requestlogsIndex');
+
+    Route::get('admin/docs-api', DocsApiController::class)->name('docs-api');
 });
 
 Route::middleware(['auth'])->prefix('ajax')->group(function () {

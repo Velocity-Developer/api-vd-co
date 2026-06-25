@@ -94,7 +94,7 @@ class EnsurePublicAiSignature
 
     private function websiteLicenseKey(string $resource): string
     {
-        return 'AI-PUBLIC-' . substr(md5($resource), 0, 24);
+        return 'AI-PUBLIC-'.substr(md5($resource), 0, 24);
     }
 
     private function statusCodeForException(Throwable $exception): int

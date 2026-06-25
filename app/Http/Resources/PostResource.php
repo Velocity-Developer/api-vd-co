@@ -28,22 +28,22 @@ class PostResource extends JsonResource
             'content' => $this->content,
             'post_tag' => $this->whenLoaded(
                 'tags',
-                fn(): string => $this->tags->pluck('name')->implode(', '),
+                fn (): string => $this->tags->pluck('name')->implode(', '),
                 '',
             ),
             'post_tag_id' => $this->whenLoaded(
                 'tags',
-                fn(): string => $this->tags->pluck('id')->implode(', '),
+                fn (): string => $this->tags->pluck('id')->implode(', '),
                 '',
             ),
             'category' => $this->whenLoaded(
                 'categories',
-                fn(): string => $this->categories->pluck('name')->implode(', '),
+                fn (): string => $this->categories->pluck('name')->implode(', '),
                 '',
             ),
             'category_id' => $this->whenLoaded(
                 'categories',
-                fn(): string => $this->categories->pluck('id')->implode(', '),
+                fn (): string => $this->categories->pluck('id')->implode(', '),
                 '',
             ),
             'published_at' => $this->published_at,
@@ -58,7 +58,7 @@ class PostResource extends JsonResource
         return match (true) {
             $this->image === null => null,
             str_starts_with($this->image, 'http') => $this->image,
-            default => rtrim((string) config('app.url'), '/') . '/storage/' . ltrim($this->image, '/'),
+            default => rtrim((string) config('app.url'), '/').'/storage/'.ltrim($this->image, '/'),
         };
     }
 }
