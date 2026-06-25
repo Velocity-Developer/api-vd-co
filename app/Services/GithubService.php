@@ -91,6 +91,15 @@ class GithubService
         return $project->fresh();
     }
 
+    public function isRepositoryPrivate(string $owner, string $repo): bool
+    {
+        $response = Http::withHeaders([
+            'Accept' => 'application/vnd.github+json',
+        ])->get("{$this->baseUrl}/repos/{$owner}/{$repo}");
+
+        return $response->status() === 404;
+    }
+
     /**
      * @return array{owner: string, repo: string}|null
      */

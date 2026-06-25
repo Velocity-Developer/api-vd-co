@@ -82,3 +82,35 @@ test('github service keeps the project unchanged when latest release cannot be f
     expect($project->version)->toBe('1.0.0')
         ->and($project->package_external_url)->toBe('https://downloads.example.com/original.zip');
 });
+
+test('github service identifies a repository as private when github returns 404 without token', function () {
+    Http::fake([
+        'https://api.github.com/repos/example/private-repo' => Http::response([], 404),
+    ]);
+
+    $isPrivate = app(GithubService::class)->isRepositoryPrivate('example', 'private-repo');
+
+    expect($isPrivate)->toBeTrue();
+
+    Http::assertSent(function ($request): bool {
+        return $request->url() === 'https://api.github.com/repos/example/private-repo'
+            && ! $request->hasHeader('Authorization');
+    });
+});
+
+test('github service identifies a repository as public when github does not return 404', function () {
+    Http::fake([
+        'https://api.github.com/repos/example/public-repo' => Http::response([
+            'private' => false,
+        ], 200),
+    ]);
+
+    $isPrivate = app(GithubService::class)->isRepositoryPrivate('example', 'public-repo');
+
+    expect($isPrivate)->toBeFalse();
+
+    Http::assertSent(function ($request): bool {
+        return $request->url() === 'https://api.github.com/repos/example/public-repo'
+            && ! $request->hasHeader('Authorization');
+    });
+});
