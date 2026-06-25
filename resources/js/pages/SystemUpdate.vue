@@ -122,52 +122,49 @@ onMounted(checkForUpdates);
 </script>
 
 <template>
-    <Head title="System Update" />
+    <Head title="System Update" />    
+            
+    <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold">Update Sistem</h1>
+                <p class="text-sm text-muted-foreground">Update dari GitHub Releases Velocity-Developer/api-vd-co.</p>
+            </div>
+            <button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50" :disabled="isChecking" @click="checkForUpdates">
+                {{ isChecking ? 'Mengecek...' : 'Cek Update' }}
+            </button>
+        </div>
 
-    <AppLayout>
-        <main class="mx-auto w-full max-w-4xl space-y-6 p-6">
-            <section class="rounded-xl border bg-white p-6 shadow-sm dark:bg-neutral-950">
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 class="text-2xl font-semibold">Update Sistem</h1>
-                        <p class="text-sm text-muted-foreground">Update dari GitHub Releases Velocity-Developer/api-vd-co.</p>
-                    </div>
-                    <button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50" :disabled="isChecking" @click="checkForUpdates">
-                        {{ isChecking ? 'Mengecek...' : 'Cek Update' }}
-                    </button>
-                </div>
+        <div class="mt-6 rounded-lg border p-4">
+            <p class="text-sm text-muted-foreground">Versi saat ini</p>
+            <p class="font-mono text-lg">{{ currentVersion || 'Memuat...' }}</p>
+        </div>
 
-                <div class="mt-6 rounded-lg border p-4">
-                    <p class="text-sm text-muted-foreground">Versi saat ini</p>
-                    <p class="font-mono text-lg">{{ currentVersion || 'Memuat...' }}</p>
-                </div>
+        <div v-if="updateInfo" class="mt-4 rounded-lg border p-4" :class="updateInfo.has_update ? 'border-green-300 bg-green-50 dark:bg-green-950/20' : 'bg-muted/40'">
+            <h2 class="font-semibold">{{ updateInfo.has_update ? 'Update tersedia' : 'Sudah versi terbaru' }}</h2>
+            <p class="mt-1 text-sm">Versi terbaru: <span class="font-mono">{{ updateInfo.latest_version }}</span></p>
+            <p class="text-sm">Rilis: {{ formatDate(updateInfo.published_at) }}</p>
+            <pre v-if="updateInfo.release_notes" class="mt-3 whitespace-pre-wrap rounded-md bg-background p-3 text-sm">{{ updateInfo.release_notes }}</pre>
+            <button
+                v-if="updateInfo.has_update"
+                class="mt-4 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                :disabled="isUpdating || !updateInfo.download_url"
+                @click="performUpdate"
+            >
+                {{ isUpdating ? 'Menginstall...' : 'Install Update' }}
+            </button>
+        </div>
 
-                <div v-if="updateInfo" class="mt-4 rounded-lg border p-4" :class="updateInfo.has_update ? 'border-green-300 bg-green-50 dark:bg-green-950/20' : 'bg-muted/40'">
-                    <h2 class="font-semibold">{{ updateInfo.has_update ? 'Update tersedia' : 'Sudah versi terbaru' }}</h2>
-                    <p class="mt-1 text-sm">Versi terbaru: <span class="font-mono">{{ updateInfo.latest_version }}</span></p>
-                    <p class="text-sm">Rilis: {{ formatDate(updateInfo.published_at) }}</p>
-                    <pre v-if="updateInfo.release_notes" class="mt-3 whitespace-pre-wrap rounded-md bg-background p-3 text-sm">{{ updateInfo.release_notes }}</pre>
-                    <button
-                        v-if="updateInfo.has_update"
-                        class="mt-4 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                        :disabled="isUpdating || !updateInfo.download_url"
-                        @click="performUpdate"
-                    >
-                        {{ isUpdating ? 'Menginstall...' : 'Install Update' }}
-                    </button>
-                </div>
+        <div class="mt-6 border-t pt-6">
+            <h2 class="font-semibold">Backup & Restore</h2>
+            <p class="mt-1 text-sm text-muted-foreground">Backup otomatis dibuat sebelum update.</p>
+            <button class="mt-3 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50" :disabled="isRestoring" @click="restoreBackup">
+                {{ isRestoring ? 'Restore...' : 'Restore Backup Terakhir' }}
+            </button>
+        </div>
 
-                <div class="mt-6 border-t pt-6">
-                    <h2 class="font-semibold">Backup & Restore</h2>
-                    <p class="mt-1 text-sm text-muted-foreground">Backup otomatis dibuat sebelum update.</p>
-                    <button class="mt-3 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50" :disabled="isRestoring" @click="restoreBackup">
-                        {{ isRestoring ? 'Restore...' : 'Restore Backup Terakhir' }}
-                    </button>
-                </div>
-
-                <p v-if="message" class="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{{ message }}</p>
-                <p v-if="errorMessage" class="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ errorMessage }}</p>
-            </section>
-        </main>
-    </AppLayout>
+        <p v-if="message" class="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{{ message }}</p>
+        <p v-if="errorMessage" class="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ errorMessage }}</p>
+    </div>
+            
 </template>
