@@ -8,6 +8,7 @@ use App\Models\RequestLog;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Website;
+use App\Services\GithubService;
 use App\Services\UnsplashService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -399,34 +400,46 @@ test('public project show returns not found for unknown slug', function () {
     Carbon::setTestNow();
 });
 
-test('public project can be updated by slug with a package upload', function () {
+test('public github webhook can sync project release', function () {
     Carbon::setTestNow('2026-06-20 09:00:00');
     putenv('RELEASE_WEBHOOK_SECRET=test-webhook-secret');
     $_ENV['RELEASE_WEBHOOK_SECRET'] = 'test-webhook-secret';
     $_SERVER['RELEASE_WEBHOOK_SECRET'] = 'test-webhook-secret';
-
-    Storage::fake('public');
-
-    $parentProject = Project::factory()->create([
-        'name' => 'Parent Project',
-        'slug' => 'parent-project',
-    ]);
 
     $project = Project::factory()->create([
         'name' => 'Velocity Addons',
         'slug' => 'velocity-addons',
         'type' => 'wp_plugin',
         'version' => '2.3.0',
-        'requires_wp' => '6.7',
-        'requires_php' => '8.2',
-        'plugin_wp_required' => false,
-        'package_file' => 'project-packages/velocity-addons/velocity-addons-2-3-0.zip',
+        'github_url' => 'https://github.com/example/velocity-addons',
         'package_external_url' => 'https://downloads.example.com/velocity-addons.zip',
-        'parent_id' => null,
     ]);
-    Storage::disk('public')->put($project->package_file, 'old package');
 
-    $package = UploadedFile::fake()->create('velocity-addons-pro.zip', 240, 'application/zip');
+    $syncedProject = Project::factory()->make([
+        'id' => $project->id,
+        'name' => $project->name,
+        'slug' => $project->slug,
+        'type' => $project->type,
+        'version' => '2.4.0',
+        'github_url' => $project->github_url,
+        'package_file' => 'project-packages/velocity-addons/velocity-addons-2-4-0.zip',
+        'package_external_url' => null,
+        'parent_id' => $project->parent_id,
+        'plugin_wp_required' => $project->plugin_wp_required,
+        'requires_php' => $project->requires_php,
+        'requires_wp' => $project->requires_wp,
+        'description' => $project->description,
+        'created_at' => $project->created_at,
+        'updated_at' => now(),
+    ]);
+
+    $service = Mockery::mock(GithubService::class);
+    $service->shouldReceive('syncGithubProjectRelease')
+        ->once()
+        ->with($project->id)
+        ->andReturn($syncedProject);
+
+    app()->instance(GithubService::class, $service);
 
     $signature = hash_hmac(
         'sha256',
@@ -435,47 +448,39 @@ test('public project can be updated by slug with a package upload', function () 
     );
 
     $this->withHeader('X-Signature', $signature)
-        ->post("/api/v1/release-project/{$project->slug}", [
-            'name' => 'Velocity Addons Pro',
-            'slug' => 'Velocity Addons Pro',
-            'type' => 'wp_plugin',
-            'version' => '2.4.0',
-            'requires_wp' => '6.9.4',
-            'requires_php' => '8.1.34',
-            'plugin_wp_required' => true,
-            'github_url' => 'https://github.com/example/velocity-addons-pro',
-            'package_external_url' => 'https://downloads.example.com/velocity-addons-pro.zip',
-            'description' => 'Updated plugin package.',
-            'parent_id' => $parentProject->id,
-            'package_file' => $package,
-        ])
+        ->post("/api/v1/release-project/{$project->slug}")
         ->assertOk()
         ->assertJsonPath('status', true)
         ->assertJsonPath('message', 'Success')
-        ->assertJsonPath('data.name', 'Velocity Addons Pro')
-        ->assertJsonPath('data.slug', 'velocity-addons-pro')
-        ->assertJsonPath('data.type', 'wp_plugin')
-        ->assertJsonPath('data.requires', '6.9.4')
-        ->assertJsonPath('data.requires_php', '8.1.34')
-        ->assertJsonPath('data.plugin_wp_required', true)
-        ->assertJsonPath('data.parent.id', $parentProject->id)
-        ->assertJsonPath('data.parent.name', 'Parent Project')
-        ->assertJsonPath('data.download_url', 'https://downloads.example.com/velocity-addons-pro.zip');
+        ->assertJsonPath('data.id', $project->id)
+        ->assertJsonPath('data.version', '2.4.0')
+        ->assertJsonPath('data.package_external_url', null)
+        ->assertJsonPath('data.package_file', 'project-packages/velocity-addons/velocity-addons-2-4-0.zip');
 
-    $project->refresh();
+    Carbon::setTestNow();
+});
 
-    expect($project->name)->toBe('Velocity Addons Pro')
-        ->and($project->slug)->toBe('velocity-addons-pro')
-        ->and($project->version)->toBe('2.4.0')
-        ->and($project->requires_wp)->toBe('6.9.4')
-        ->and($project->requires_php)->toBe('8.1.34')
-        ->and($project->plugin_wp_required)->toBeTrue()
-        ->and($project->parent_id)->toBe($parentProject->id)
-        ->and($project->package_external_url)->toBe('https://downloads.example.com/velocity-addons-pro.zip')
-        ->and($project->package_file)->toStartWith('project-packages/velocity-addons-pro/');
+test('public github webhook returns validation error when project has no github url', function () {
+    Carbon::setTestNow('2026-06-20 09:00:00');
+    putenv('RELEASE_WEBHOOK_SECRET=test-webhook-secret');
+    $_ENV['RELEASE_WEBHOOK_SECRET'] = 'test-webhook-secret';
+    $_SERVER['RELEASE_WEBHOOK_SECRET'] = 'test-webhook-secret';
 
-    Storage::disk('public')->assertMissing('project-packages/velocity-addons/velocity-addons-2-3-0.zip');
-    Storage::disk('public')->assertExists($project->package_file);
+    $project = Project::factory()->create([
+        'github_url' => null,
+    ]);
+
+    $signature = hash_hmac(
+        'sha256',
+        Carbon::now('Asia/Jakarta')->format('dmY'),
+        'test-webhook-secret',
+    );
+
+    $this->withHeader('X-Signature', $signature)
+        ->post("/api/v1/release-project/{$project->slug}")
+        ->assertStatus(422)
+        ->assertJsonPath('status', false)
+        ->assertJsonPath('message', 'Project must have a GitHub URL before syncing releases.');
 
     Carbon::setTestNow();
 });

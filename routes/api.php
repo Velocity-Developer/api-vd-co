@@ -42,5 +42,5 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {
-    Route::post('/release-project/{slug}', [ApiV1ProjectController::class, 'update']);
+    Route::post('/release-project/{slug}', [ApiV1ProjectController::class, 'syncGithubRelease']);
 });

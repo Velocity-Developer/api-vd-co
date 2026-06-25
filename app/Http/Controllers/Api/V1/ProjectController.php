@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use App\Services\GithubService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -29,6 +30,39 @@ class ProjectController extends Controller
         }
 
         return $this->projectResponse($request, $project);
+    }
+
+    public function syncGithubRelease(Request $request, string $slug, GithubService $githubService): JsonResponse
+    {
+        $project = Project::query()
+            ->with('parent:id,name')
+            ->where('slug', $slug)
+            ->first();
+
+        if (! $project instanceof Project) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Project not found',
+            ], 404);
+        }
+
+        if (blank($project->github_url)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Project must have a GitHub URL before syncing releases.',
+            ], 422);
+        }
+
+        $syncedProject = $githubService->syncGithubProjectRelease($project->id);
+
+        if (! $syncedProject instanceof Project) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unable to sync the latest GitHub release for this project.',
+            ], 422);
+        }
+
+        return $this->projectResponse($request, $syncedProject->load('parent:id,name'));
     }
 
     public function update(Request $request, string $slug): JsonResponse
