@@ -6,6 +6,8 @@ use App\Models\Project;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GithubService
 {
@@ -83,6 +85,24 @@ class GithubService
             return null;
         }
 
+        $isPrivateRepository = $this->isRepositoryPrivate($repository['owner'], $repository['repo']);
+
+        if ($isPrivateRepository) {
+            $packageFile = $this->downloadReleasePackage($project, $release);
+
+            if ($packageFile === null) {
+                return null;
+            }
+
+            $project->forceFill([
+                'version' => $release['version_tag'],
+                'package_external_url' => null,
+                'package_file' => $packageFile,
+            ])->save();
+
+            return $project->fresh();
+        }
+
         $project->forceFill([
             'version' => $release['version_tag'],
             'package_external_url' => $release['package_download_url'],
@@ -133,5 +153,58 @@ class GithubService
                 fn ($request) => $request->withToken($this->token),
             )
             ->get("{$this->baseUrl}/{$path}");
+    }
+
+    /**
+     * @param  array{
+     *     version_tag: string|null,
+     *     package_download_url: string|null,
+     *     files: array<int, array{
+     *         file_name: string|null,
+     *         file_size: int|null,
+     *         download_url: string|null
+     *     }>
+     * }  $release
+     */
+    private function downloadReleasePackage(Project $project, array $release): ?string
+    {
+        $downloadUrl = $release['package_download_url'];
+
+        if (blank($downloadUrl)) {
+            return null;
+        }
+
+        $response = Http::withHeaders([
+            'Accept' => 'application/octet-stream',
+        ])
+            ->when(
+                filled($this->token),
+                fn ($request) => $request->withToken($this->token),
+            )
+            ->get($downloadUrl);
+
+        if ($response->failed()) {
+            return null;
+        }
+
+        $this->deleteStoredPackageFile($project);
+
+        $fileName = $release['files'][0]['file_name']
+            ?? Str::slug($project->name).'-'.Str::slug((string) $release['version_tag']).'.zip';
+        $folder = 'project-packages/'.Str::slug($project->name);
+        $path = $folder.'/'.$fileName;
+
+        Storage::disk('public')->put($path, $response->body());
+
+        return $path;
+    }
+
+    private function deleteStoredPackageFile(Project $project): void
+    {
+        if (blank($project->package_file) || str_starts_with($project->package_file, 'http')) {
+            return;
+        }
+
+        Storage::disk('public')->delete($project->package_file);
     }
 }

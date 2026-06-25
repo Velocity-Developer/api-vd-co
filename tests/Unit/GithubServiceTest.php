@@ -4,6 +4,7 @@ use App\Models\Project;
 use App\Services\GithubService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
@@ -16,6 +17,9 @@ test('github service syncs the latest release into the project version and packa
     ]);
 
     Http::fake([
+        'https://api.github.com/repos/example/velocity-addons' => Http::response([
+            'private' => false,
+        ], 200),
         'https://api.github.com/repos/example/velocity-addons/releases/latest' => Http::response([
             'tag_name' => '2.4.0',
             'name' => 'Velocity Addons 2.4.0',
@@ -39,6 +43,51 @@ test('github service syncs the latest release into the project version and packa
 
     expect($project->version)->toBe('2.4.0')
         ->and($project->package_external_url)->toBe('https://github.com/example/velocity-addons/releases/download/2.4.0/velocity-addons.zip');
+});
+
+test('github service uploads the latest release package for a private repository', function () {
+    Storage::fake('public');
+
+    $project = Project::factory()->create([
+        'name' => 'Velocity Addons',
+        'github_url' => 'https://github.com/example/private-addons',
+        'version' => '1.0.0',
+        'package_file' => 'project-packages/velocity-addons/old-package.zip',
+        'package_external_url' => 'https://downloads.example.com/original.zip',
+    ]);
+
+    Storage::disk('public')->put('project-packages/velocity-addons/old-package.zip', 'old package');
+
+    Http::fake([
+        'https://api.github.com/repos/example/private-addons' => Http::response([], 404),
+        'https://api.github.com/repos/example/private-addons/releases/latest' => Http::response([
+            'tag_name' => '2.5.0',
+            'name' => 'Velocity Addons 2.5.0',
+            'published_at' => '2026-06-25T08:00:00Z',
+            'assets' => [
+                [
+                    'name' => 'velocity-addons-private.zip',
+                    'size' => 1500,
+                    'browser_download_url' => 'https://github.com/example/private-addons/releases/download/2.5.0/velocity-addons-private.zip',
+                ],
+            ],
+        ], 200),
+        'https://github.com/example/private-addons/releases/download/2.5.0/velocity-addons-private.zip' => Http::response('zip-binary-content', 200),
+    ]);
+
+    $syncedProject = app(GithubService::class)->syncGithubProjectRelease($project->id);
+
+    expect($syncedProject)->not->toBeNull();
+
+    $project->refresh();
+
+    expect($project->version)->toBe('2.5.0')
+        ->and($project->package_external_url)->toBeNull()
+        ->and($project->package_file)->toBe('project-packages/velocity-addons/velocity-addons-private.zip');
+
+    Storage::disk('public')->assertMissing('project-packages/velocity-addons/old-package.zip');
+    Storage::disk('public')->assertExists('project-packages/velocity-addons/velocity-addons-private.zip');
+    expect(Storage::disk('public')->get('project-packages/velocity-addons/velocity-addons-private.zip'))->toBe('zip-binary-content');
 });
 
 test('github service does not sync a project without github url', function () {
@@ -70,6 +119,9 @@ test('github service keeps the project unchanged when latest release cannot be f
     ]);
 
     Http::fake([
+        'https://api.github.com/repos/example/velocity-addons' => Http::response([
+            'private' => false,
+        ], 200),
         'https://api.github.com/repos/example/velocity-addons/releases/latest' => Http::response([], 404),
     ]);
 
