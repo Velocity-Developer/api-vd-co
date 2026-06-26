@@ -231,7 +231,6 @@ test('get-auto-license route returns latest license code for registered server i
     ]);
 
     $this->withServerVariables(['REMOTE_ADDR' => '192.168.10.20'])
-        ->withHeader('License', $latestLicense->code)
         ->getJson('/api/v1/get-auto-license')
         ->assertOk()
         ->assertJsonPath('status', true)

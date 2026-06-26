@@ -41,16 +41,13 @@ class EnsureRegisteredServerIp
 
     private function logRequest(Request $request, int $status): void
     {
-        $license = License::query()->where('code', (string) $request->header('license', ''))->first();
-        $source = (string) $request->header('source', $request->ip() ?? 'server');
+        $license = $request->header('license');
+        $source = $request->header('source');
+
         $website = Website::query()->firstOrCreate(
             ['domain' => $source],
-            ['license_key' => $license?->code ?? '', 'status' => 'active'],
+            ['license_key' => $license ?? ''],
         );
-
-        if (! $license instanceof License) {
-            return;
-        }
 
         RequestLog::create([
             'route' => $request->getPathInfo(),
@@ -58,7 +55,7 @@ class EnsureRegisteredServerIp
             'request' => $request->input(),
             'status' => $status,
             'website_id' => $website->id,
-            'license_id' => $license->id,
+            'license_id' => null,
         ]);
     }
 }

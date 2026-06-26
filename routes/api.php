@@ -36,7 +36,7 @@ Route::middleware(['license'])->prefix('v1')->group(function () {
     Route::get('/license', [ApiV1LicenseController::class, 'index']);
 });
 
-Route::middleware(['registered.server.ip', 'license'])->prefix('v1')->group(function () {
+Route::middleware('registered.server.ip')->prefix('v1')->group(function () {
     Route::get('/get-license', [ApiV1LicenseController::class, 'index']);
     Route::get('/get-auto-license', [ApiV1LicenseController::class, 'getAutoLicense']);
 });
