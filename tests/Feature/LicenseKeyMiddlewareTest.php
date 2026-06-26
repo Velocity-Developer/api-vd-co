@@ -2,6 +2,7 @@
 
 use App\Models\License;
 use App\Models\RequestLog;
+use App\Models\Server;
 use App\Models\Website;
 use Illuminate\Support\Facades\Route;
 
@@ -174,4 +175,36 @@ test('api requests are logged when the endpoint throws an exception', function (
     expect($requestLog->route)->toBe('/api/v1/failing-request')
         ->and($requestLog->status)->toBe(500)
         ->and($requestLog->license_id)->toBe($license->id);
+});
+
+test('get-license route rejects unregistered server ip addresses', function () {
+    $license = License::factory()->create([
+        'code' => 'APICO-LICENSE-0001',
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.168.10.99'])
+        ->withHeader('License', $license->code)
+        ->getJson('/api/v1/get-license')
+        ->assertForbidden()
+        ->assertJsonPath('status', false)
+        ->assertJsonPath('message', 'IP address is not registered.');
+});
+
+test('get-license route accepts registered server ip addresses', function () {
+    $license = License::factory()->create([
+        'code' => 'APICO-LICENSE-0002',
+        'expires_at' => now()->addDay(),
+    ]);
+    Server::factory()->create([
+        'server_ip' => '192.168.10.20',
+    ]);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.168.10.20'])
+        ->withHeader('License', $license->code)
+        ->getJson('/api/v1/get-license')
+        ->assertOk()
+        ->assertJsonPath('status', true)
+        ->assertJsonPath('data.code', $license->code)
+        ->assertJsonPath('data.is_active', true);
 });

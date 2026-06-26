@@ -36,6 +36,10 @@ Route::middleware(['license'])->prefix('v1')->group(function () {
     Route::get('/license', [ApiV1LicenseController::class, 'index']);
 });
 
+Route::middleware(['registered.server.ip', 'license'])->prefix('v1')->group(function () {
+    Route::get('/get-license', [ApiV1LicenseController::class, 'index']);
+});
+
 Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/project/{slug}', [ApiV1ProjectController::class, 'show']);
     Route::get('/tgm-plugins', ApiV1TgmPluginController::class);
