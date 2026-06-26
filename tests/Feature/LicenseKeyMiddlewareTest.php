@@ -163,7 +163,7 @@ test('api requests are logged when the endpoint throws an exception', function (
         'expires_at' => now()->addDay(),
     ]);
 
-    Route::get('/api/v1/failing-request', fn () => throw new RuntimeException('Endpoint failed.'))
+    Route::get('/api/v1/failing-request', fn() => throw new RuntimeException('Endpoint failed.'))
         ->middleware('license');
 
     $this->withHeader('License', $license->code)
@@ -185,12 +185,15 @@ test('get-license route rejects unregistered server ip addresses', function () {
 
     $this->withServerVariables(['REMOTE_ADDR' => '192.168.10.99'])
         ->withHeader('License', $license->code)
+        ->withHeader('source', 'blocked.example.com')
         ->getJson('/api/v1/get-license')
         ->assertForbidden()
         ->assertJsonPath('status', false)
         ->assertJsonPath('message', 'IP address is not registered.');
-});
 
+    expect(RequestLog::where('status', 403)->count())->toBe(1)
+        ->and(RequestLog::where('license_id', $license->id)->exists())->toBeTrue();
+});
 test('get-license route accepts registered server ip addresses', function () {
     $license = License::factory()->create([
         'code' => 'APICO-LICENSE-0002',
@@ -207,6 +210,9 @@ test('get-license route accepts registered server ip addresses', function () {
         ->assertJsonPath('status', true)
         ->assertJsonPath('data.code', $license->code)
         ->assertJsonPath('data.is_active', true);
+
+    expect(RequestLog::where('status', 200)->count())->toBe(2)
+        ->and(RequestLog::where('license_id', $license->id)->exists())->toBeTrue();
 });
 
 test('get-auto-license route returns latest license code for registered server ip addresses', function () {

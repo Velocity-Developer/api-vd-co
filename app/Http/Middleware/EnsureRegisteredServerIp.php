@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\License;
+use App\Models\RequestLog;
 use App\Models\Server;
+use App\Models\Website;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,12 +22,43 @@ class EnsureRegisteredServerIp
         $ipAddress = $request->ip();
 
         if ($ipAddress === null || ! Server::query()->where('server_ip', $ipAddress)->exists()) {
-            return response()->json([
+            $response = response()->json([
                 'status' => false,
                 'message' => 'IP address is not registered.',
             ], Response::HTTP_FORBIDDEN);
+
+            $this->logRequest($request, $response->getStatusCode());
+
+            return $response;
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        $this->logRequest($request, $response->getStatusCode());
+
+        return $response;
+    }
+
+    private function logRequest(Request $request, int $status): void
+    {
+        $license = License::query()->where('code', (string) $request->header('license', ''))->first();
+        $source = (string) $request->header('source', $request->ip() ?? 'server');
+        $website = Website::query()->firstOrCreate(
+            ['domain' => $source],
+            ['license_key' => $license?->code ?? '', 'status' => 'active'],
+        );
+
+        if (! $license instanceof License) {
+            return;
+        }
+
+        RequestLog::create([
+            'route' => $request->getPathInfo(),
+            'method' => $request->method(),
+            'request' => $request->input(),
+            'status' => $status,
+            'website_id' => $website->id,
+            'license_id' => $license->id,
+        ]);
     }
 }
