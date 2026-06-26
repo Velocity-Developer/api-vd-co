@@ -11,7 +11,7 @@ session_start();
 function admintoolResolveBasePath(string $currentDirectory): string
 {
     $defaultBasePath = dirname($currentDirectory);
-    $siblingLaravelPath = $defaultBasePath.DIRECTORY_SEPARATOR.'laravel';
+    $siblingLaravelPath = $defaultBasePath . DIRECTORY_SEPARATOR . 'laravel';
 
     if (basename($currentDirectory) === 'public_html' && is_dir($siblingLaravelPath)) {
         return $siblingLaravelPath;
@@ -21,8 +21,8 @@ function admintoolResolveBasePath(string $currentDirectory): string
 }
 
 $basePath = admintoolResolveBasePath(__DIR__);
-$artisanPath = $basePath.DIRECTORY_SEPARATOR.'artisan';
-$envPath = $basePath.DIRECTORY_SEPARATOR.'.env';
+$artisanPath = $basePath . DIRECTORY_SEPARATOR . 'artisan';
+$envPath = $basePath . DIRECTORY_SEPARATOR . '.env';
 
 if (empty($_SESSION['admintool_csrf'])) {
     $_SESSION['admintool_csrf'] = bin2hex(random_bytes(32));
@@ -90,7 +90,7 @@ function admintoolPhpBinary(): string
             break;
         }
 
-        $output = @shell_exec('"'.$binary.'" --version 2>&1');
+        $output = @shell_exec('"' . $binary . '" --version 2>&1');
 
         if (is_string($output) && str_contains($output, 'PHP')) {
             return $binary;
@@ -108,10 +108,10 @@ function admintoolBootArtisanKernel(string $basePath): Kernel
         return $kernel;
     }
 
-    require_once $basePath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php';
+    require_once $basePath . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
 
     /** @var Application $app */
-    $app = require $basePath.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'app.php';
+    $app = require $basePath . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'app.php';
 
     $kernel = $app->make(Kernel::class);
     $kernel->bootstrap();
@@ -144,7 +144,7 @@ function admintoolRunArtisan(string $basePath, string $artisanPath, array $argum
             }
 
             if (! str_starts_with($argument, '--')) {
-                $cli .= ' '.escapeshellarg($argument);
+                $cli .= ' ' . escapeshellarg($argument);
 
                 continue;
             }
@@ -152,15 +152,15 @@ function admintoolRunArtisan(string $basePath, string $artisanPath, array $argum
             [$key, $value] = array_pad(explode('=', $argument, 2), 2, null);
 
             if ($value === null) {
-                $cli .= ' '.$key;
+                $cli .= ' ' . $key;
 
                 continue;
             }
 
-            $cli .= ' '.$key.'='.escapeshellarg($value);
+            $cli .= ' ' . $key . '=' . escapeshellarg($value);
         }
 
-        $output = @shell_exec('"'.$phpBinary.'" '.escapeshellarg($artisanPath).' '.$cli.' 2>&1');
+        $output = @shell_exec('"' . $phpBinary . '" ' . escapeshellarg($artisanPath) . ' ' . $cli . ' 2>&1');
 
         return [
             'exit_code' => $output === null ? 1 : 0,
@@ -197,7 +197,7 @@ function admintoolRunArtisan(string $basePath, string $artisanPath, array $argum
     } catch (Throwable $exception) {
         return [
             'exit_code' => 1,
-            'output' => 'artisan call failed: '.$exception->getMessage(),
+            'output' => 'artisan call failed: ' . $exception->getMessage(),
         ];
     }
 }
@@ -230,7 +230,7 @@ function admintoolCopyPublicToPublicHtml(string $sourcePath, string $targetPath)
 
     foreach ($iterator as $item) {
         $relativePath = substr($item->getPathname(), strlen($sourcePath) + 1);
-        $destinationPath = $targetPath.DIRECTORY_SEPARATOR.$relativePath;
+        $destinationPath = $targetPath . DIRECTORY_SEPARATOR . $relativePath;
 
         if ($item->isDir()) {
             if (! is_dir($destinationPath) && ! mkdir($destinationPath, 0755, true)) {
@@ -258,9 +258,9 @@ function admintoolCopyPublicToPublicHtml(string $sourcePath, string $targetPath)
     }
 
     $output = [
-        'Source: '.$sourcePath,
-        'Target: '.$targetPath,
-        'File copied: '.$copied,
+        'Source: ' . $sourcePath,
+        'Target: ' . $targetPath,
+        'File copied: ' . $copied,
     ];
 
     if ($failed !== []) {
@@ -277,16 +277,14 @@ function admintoolCopyPublicToPublicHtml(string $sourcePath, string $targetPath)
 /**
  * @return array{exit_code: int, output: string}
  */
-function admintoolCreatePublicHtmlStorageSymlink(string $basePath): array
+function admintoolCreateStorageSymlink(string $linkDirectory, string $targetPath): array
 {
-    $publicHtmlPath = dirname($basePath).DIRECTORY_SEPARATOR.'public_html';
-    $linkPath = $publicHtmlPath.DIRECTORY_SEPARATOR.'storage';
-    $targetPath = $basePath.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'public';
+    $linkPath = $linkDirectory . DIRECTORY_SEPARATOR . 'storage';
 
-    if (! is_dir($publicHtmlPath)) {
+    if (! is_dir($linkDirectory)) {
         return [
             'exit_code' => 1,
-            'output' => 'Folder public_html tidak ditemukan.',
+            'output' => 'Folder link storage tidak ditemukan: ' . $linkDirectory,
         ];
     }
 
@@ -303,33 +301,60 @@ function admintoolCreatePublicHtmlStorageSymlink(string $basePath): array
         if ($existingTarget === $targetPath) {
             return [
                 'exit_code' => 0,
-                'output' => 'Symlink storage sudah ada dan mengarah ke target yang benar.',
+                'output' => 'Symlink storage sudah ada dan mengarah ke target yang benar: ' . $linkPath,
             ];
         }
 
         return [
             'exit_code' => 1,
-            'output' => 'Symlink storage sudah ada tetapi mengarah ke: '.(string) $existingTarget,
+            'output' => 'Symlink storage sudah ada tetapi mengarah ke: ' . (string) $existingTarget,
         ];
     }
 
     if (file_exists($linkPath)) {
         return [
             'exit_code' => 1,
-            'output' => 'Path public_html/storage sudah ada sebagai file atau folder biasa.',
+            'output' => 'Path storage sudah ada sebagai file atau folder biasa: ' . $linkPath,
         ];
     }
 
     if (@symlink($targetPath, $linkPath)) {
         return [
             'exit_code' => 0,
-            'output' => 'Symlink berhasil dibuat: '.$linkPath.' -> '.$targetPath,
+            'output' => 'Symlink berhasil dibuat: ' . $linkPath . ' -> ' . $targetPath,
         ];
     }
 
     return [
         'exit_code' => 1,
-        'output' => 'Gagal membuat symlink. Pastikan fungsi symlink aktif dan permission folder public_html mencukupi.',
+        'output' => 'Gagal membuat symlink. Pastikan fungsi symlink aktif dan permission folder tujuan mencukupi.',
+    ];
+}
+
+function admintoolCreatePublicHtmlStorageSymlink(string $basePath): array
+{
+    return admintoolCreateStorageSymlink(
+        dirname($basePath) . DIRECTORY_SEPARATOR . 'public_html',
+        $basePath . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'public'
+    );
+}
+
+/**
+ * @return array{exit_code: int, output: string}
+ */
+function admintoolRunStorageLinkCommand(string $basePath, string $artisanPath): array
+{
+    $artisanResult = admintoolRunArtisan($basePath, $artisanPath, ['storage:link', '--no-interaction']);
+    $publicHtmlResult = admintoolCreatePublicHtmlStorageSymlink($basePath);
+
+    return [
+        'exit_code' => max($artisanResult['exit_code'], $publicHtmlResult['exit_code']),
+        'output' => trim(implode(PHP_EOL . PHP_EOL, [
+            '[public/storage]',
+            $artisanResult['output'] !== '' ? $artisanResult['output'] : 'Tidak ada output.',
+            '[public_html/storage]',
+            $publicHtmlResult['output'],
+        ])),
     ];
 }
 
@@ -353,11 +378,11 @@ function admintoolRenderPhpInfo(): string
 
 $env = admintoolReadEnv($envPath);
 $password = $env['ADMINTOOL_PASSWORD'] ?? $env['ADMINS_TOOL_PASSWORD'] ?? $env['APP_KEY'] ?? '123456789';
-$sessionKey = hash('sha256', $basePath.'|admintool');
+$sessionKey = hash('sha256', $basePath . '|admintool');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
     unset($_SESSION[$sessionKey]);
-    header('Location: '.strtok((string) $_SERVER['REQUEST_URI'], '?'));
+    header('Location: ' . strtok((string) $_SERVER['REQUEST_URI'], '?'));
     exit;
 }
 
@@ -366,7 +391,7 @@ $loginError = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
     if ($password !== '' && hash_equals($password, (string) $_POST['password'])) {
         $_SESSION[$sessionKey] = true;
-        header('Location: '.strtok((string) $_SERVER['REQUEST_URI'], '?'));
+        header('Location: ' . strtok((string) $_SERVER['REQUEST_URI'], '?'));
         exit;
     }
 
@@ -426,8 +451,8 @@ $commands = [
     ],
     'storage_link' => [
         'label' => 'Storage Link',
-        'description' => 'Membuat symbolic link storage publik.',
-        'arguments' => ['storage:link', '--no-interaction'],
+        'description' => 'Membuat symbolic link public/storage dan public_html/storage.',
+        'handler' => 'storage_link',
         'danger' => false,
     ],
     'queue_restart' => [
@@ -481,8 +506,8 @@ if ($isAuthenticated && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['c
         ];
     } elseif (($commands[$selectedCommand]['handler'] ?? null) === 'copy_public_html') {
         $result = admintoolCopyPublicToPublicHtml(
-            $basePath.DIRECTORY_SEPARATOR.'public',
-            dirname($basePath).DIRECTORY_SEPARATOR.'public_html'
+            $basePath . DIRECTORY_SEPARATOR . 'public',
+            dirname($basePath) . DIRECTORY_SEPARATOR . 'public_html'
         );
     } elseif (($commands[$selectedCommand]['handler'] ?? null) === 'public_html_storage_link') {
         $result = admintoolCreatePublicHtmlStorageSymlink($basePath);

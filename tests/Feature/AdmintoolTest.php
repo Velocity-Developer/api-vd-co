@@ -75,7 +75,32 @@ PHP;
     expect($process->getOutput())
         ->toContain('Public HTML Storage Link')
         ->toContain('public_html/storage')
-        ->toContain('laravel/storage/app/public');
+        ->toContain('storage/app/public');
+});
+
+test('admintool storage link action mentions both public targets', function () {
+    $script = <<<'PHP'
+session_id('admintool-storage-link-action-test');
+session_start();
+$_SESSION[hash('sha256', getcwd().'|admintool')] = true;
+$_SESSION['admintool_csrf'] = 'test-csrf-token';
+session_write_close();
+
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['REQUEST_URI'] = '/admintool.php';
+
+ob_start();
+require 'public/admintool.php';
+echo ob_get_clean();
+PHP;
+
+    $process = new Process([PHP_BINARY, '-r', $script], base_path());
+    $process->mustRun();
+
+    expect($process->getOutput())
+        ->toContain('Storage Link')
+        ->toContain('public_html/storage')
+        ->toContain('symbolic link public/storage dan public_html/storage');
 });
 
 test('admintool runs artisan command from authenticated form post', function () {
