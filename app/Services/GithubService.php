@@ -8,6 +8,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use GuzzleHttp\Client;
 
 class GithubService
 {
@@ -49,6 +50,7 @@ class GithubService
         $assets = collect(Arr::get($data, 'assets', []))
             ->map(function (array $asset): array {
                 return [
+                    'asset_id' => $asset['id'] ?? null,
                     'file_name' => $asset['name'] ?? null,
                     'file_size' => $asset['size'] ?? null,
                     'download_url' => $asset['browser_download_url'] ?? null,
@@ -110,10 +112,10 @@ class GithubService
         $isPrivateRepository = $this->isRepositoryPrivate($repository['owner'], $repository['repo']);
 
         if ($isPrivateRepository) {
-            $packageFile = $this->downloadReleasePackage($project, $release);
+            $packageFile = $this->downloadReleasePackage($project, $release, $repository);
 
             if ($packageFile === null) {
-                $this->lastSyncError = 'Release package download failed.';
+                $this->lastSyncError ??= 'Release package download failed.';
 
                 return null;
             }
@@ -179,21 +181,20 @@ class GithubService
         ])
             ->when(
                 filled($this->token),
-                fn ($request) => $request->withToken($this->token),
+                fn($request) => $request->withToken($this->token),
             )
+            ->timeout(600)
             ->get("{$this->baseUrl}/{$path}");
     }
 
-    private function githubDownloadRequest(string $downloadUrl): Response
+    private function githubAssetDownloadRequest(int $assetId, array $repository): Response
     {
         return Http::withHeaders([
             'Accept' => 'application/octet-stream',
+            'Content-Type' => null,
+            'Authorization' => "Bearer {$this->token}",
         ])
-            ->when(
-                filled($this->token),
-                fn ($request) => $request->withToken($this->token),
-            )
-            ->get($downloadUrl);
+            ->get("{$this->baseUrl}/repos/{$repository['owner']}/{$repository['repo']}/releases/assets/{$assetId}");
     }
 
     /**
@@ -201,32 +202,38 @@ class GithubService
      *     version_tag: string|null,
      *     package_download_url: string|null,
      *     files: array<int, array{
+     *         asset_id: int|null,
      *         file_name: string|null,
      *         file_size: int|null,
      *         download_url: string|null
      *     }>
      * }  $release
      */
-    private function downloadReleasePackage(Project $project, array $release): ?string
+    private function downloadReleasePackage(Project $project, array $release, array $repository): ?string
     {
-        $downloadUrl = $release['package_download_url'];
+        $asset = $release['files'][0] ?? null;
+        $assetId = $asset['asset_id'] ?? null;
 
-        if (blank($downloadUrl)) {
+        if (! is_array($asset) || ! is_int($assetId)) {
+            $this->lastSyncError = 'Release asset ID not found.';
+
             return null;
         }
 
-        $response = $this->githubDownloadRequest($downloadUrl);
+        $response = $this->githubAssetDownloadRequest($assetId, $repository);
 
         if ($response->failed()) {
+            $this->lastSyncError = "GitHub asset download asset id {$assetId} failed with status " . $response->status() . '.';
+
             return null;
         }
 
         $this->deleteStoredPackageFile($project);
 
-        $fileName = $release['files'][0]['file_name']
-            ?? Str::slug($project->name).'-'.Str::slug((string) $release['version_tag']).'.zip';
-        $folder = 'project-packages/'.Str::slug($project->name);
-        $path = $folder.'/'.$fileName;
+        $fileName = $asset['file_name']
+            ?? Str::slug($project->name) . '-' . Str::slug((string) $release['version_tag']) . '.zip';
+        $folder = 'project-packages/' . Str::slug($project->name);
+        $path = $folder . '/' . $fileName;
 
         Storage::disk('public')->put($path, $response->body());
 

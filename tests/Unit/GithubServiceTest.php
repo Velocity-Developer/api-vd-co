@@ -68,13 +68,14 @@ test('github service uploads the latest release package for a private repository
             'published_at' => '2026-06-25T08:00:00Z',
             'assets' => [
                 [
+                    'id' => 987654,
                     'name' => 'velocity-addons-private.zip',
                     'size' => 1500,
                     'browser_download_url' => 'https://github.com/example/private-addons/releases/download/2.5.0/velocity-addons-private.zip',
                 ],
             ],
         ], 200),
-        'https://github.com/example/private-addons/releases/download/2.5.0/velocity-addons-private.zip' => Http::response('zip-binary-content', 200),
+        'https://api.github.com/repos/assets/987654' => Http::response('zip-binary-content', 200),
     ]);
 
     $syncedProject = app(GithubService::class)->syncGithubProjectRelease($project->id);
@@ -92,8 +93,9 @@ test('github service uploads the latest release package for a private repository
     expect(Storage::disk('public')->get('project-packages/velocity-addons/velocity-addons-private.zip'))->toBe('zip-binary-content');
 
     Http::assertSent(function ($request): bool {
-        return $request->url() === 'https://github.com/example/private-addons/releases/download/2.5.0/velocity-addons-private.zip'
-            && $request->hasHeader('Authorization', 'Bearer test-token');
+        return $request->url() === 'https://api.github.com/repos/assets/987654'
+            && $request->hasHeader('Authorization', 'Bearer test-token')
+            && $request->hasHeader('Accept', 'application/octet-stream');
     });
 });
 
@@ -132,14 +134,80 @@ test('github service keeps the project unchanged when latest release cannot be f
         'https://api.github.com/repos/example/velocity-addons/releases/latest' => Http::response([], 404),
     ]);
 
-    $syncedProject = app(GithubService::class)->syncGithubProjectRelease($project->id);
+    $service = app(GithubService::class);
+    $syncedProject = $service->syncGithubProjectRelease($project->id);
 
-    expect($syncedProject)->toBeNull();
+    expect($syncedProject)->toBeNull()
+        ->and($service->lastSyncError())->toBe('Latest release not found or GitHub API failed.');
 
     $project->refresh();
 
     expect($project->version)->toBe('1.0.0')
         ->and($project->package_external_url)->toBe('https://downloads.example.com/original.zip');
+});
+
+test('github service returns specific error when private release asset id is missing', function () {
+    Storage::fake('public');
+
+    config(['services.github.token' => 'test-token']);
+
+    $project = Project::factory()->create([
+        'name' => 'Velocity Addons',
+        'github_url' => 'https://github.com/example/private-addons',
+        'version' => '1.0.0',
+    ]);
+
+    Http::fake([
+        'https://api.github.com/repos/example/private-addons' => Http::response([], 404),
+        'https://api.github.com/repos/example/private-addons/releases/latest' => Http::response([
+            'tag_name' => 'v2.5.0',
+            'assets' => [
+                [
+                    'name' => 'velocity-addons-private.zip',
+                    'size' => 1500,
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $service = app(GithubService::class);
+    $syncedProject = $service->syncGithubProjectRelease($project->id);
+
+    expect($syncedProject)->toBeNull()
+        ->and($service->lastSyncError())->toBe('Release asset ID not found.');
+});
+
+test('github service returns specific error when private asset download fails', function () {
+    Storage::fake('public');
+
+    config(['services.github.token' => 'test-token']);
+
+    $project = Project::factory()->create([
+        'name' => 'Velocity Addons',
+        'github_url' => 'https://github.com/example/private-addons',
+        'version' => '1.0.0',
+    ]);
+
+    Http::fake([
+        'https://api.github.com/repos/example/private-addons' => Http::response([], 404),
+        'https://api.github.com/repos/example/private-addons/releases/latest' => Http::response([
+            'tag_name' => 'v2.5.0',
+            'assets' => [
+                [
+                    'id' => 987654,
+                    'name' => 'velocity-addons-private.zip',
+                    'size' => 1500,
+                ],
+            ],
+        ], 200),
+        'https://api.github.com/repos/assets/987654' => Http::response([], 403),
+    ]);
+
+    $service = app(GithubService::class);
+    $syncedProject = $service->syncGithubProjectRelease($project->id);
+
+    expect($syncedProject)->toBeNull()
+        ->and($service->lastSyncError())->toBe('GitHub asset download failed with status 403.');
 });
 
 test('github service identifies a repository as private when github returns 404 without token', function () {
