@@ -74,7 +74,7 @@ class ProjectController extends Controller
 
         if (! $syncedProject) {
             return response()->json([
-                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID '.$project->id.'.',
+                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID ' . $project->id . '.',
             ], 422);
         }
 
@@ -91,6 +91,8 @@ class ProjectController extends Controller
     {
         $validated = $request->validate($this->rules($project, true));
         $shouldRemovePackageFile = $request->boolean('remove_package_file');
+        $shouldRemoveIcon = $request->boolean('remove_icon');
+        $shouldRemoveScreenshot = $request->boolean('remove_screenshot');
 
         if (array_key_exists('slug', $validated)) {
             $validated['slug'] = Str::slug($validated['slug']);
@@ -106,7 +108,23 @@ class ProjectController extends Controller
             $validated['package_file'] = null;
         }
 
-        unset($validated['remove_package_file']);
+        if ($request->hasFile('icon')) {
+            $this->deleteImageFile($project->icon);
+            $validated['icon'] = $this->storeImageFile($request, 'icon');
+        } elseif ($shouldRemoveIcon) {
+            $this->deleteImageFile($project->icon);
+            $validated['icon'] = null;
+        }
+
+        if ($request->hasFile('screenshot')) {
+            $this->deleteImageFile($project->screenshot);
+            $validated['screenshot'] = $this->storeImageFile($request, 'screenshot');
+        } elseif ($shouldRemoveScreenshot) {
+            $this->deleteImageFile($project->screenshot);
+            $validated['screenshot'] = null;
+        }
+
+        unset($validated['remove_package_file'], $validated['remove_icon'], $validated['remove_screenshot']);
         $project->update($validated);
 
         return ProjectResource::make($project->load('parent:id,name'));
@@ -156,9 +174,11 @@ class ProjectController extends Controller
             'plugin_wp_required' => ['nullable', 'boolean'],
             'github_url' => ['nullable', 'url', 'max:255'],
             'package_external_url' => ['nullable', 'url', 'max:255'],
-            'icon' => ['nullable', 'string', 'max:255'],
-            'screenshot' => ['nullable', 'string', 'max:255'],
+            'icon' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'screenshot' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'remove_package_file' => ['nullable', 'boolean'],
+            'remove_icon' => ['nullable', 'boolean'],
+            'remove_screenshot' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string'],
             'type' => array_values(array_filter([
                 $isUpdate ? 'sometimes' : null,
@@ -228,10 +248,10 @@ class ProjectController extends Controller
         $file = $request->file('package_file');
 
         // 2. Tentukan nama file baru (contoh: nama-package-v1.0.0.zip)
-        $fileName = Str::slug($name).'-'.Str::slug($version).'.'.$file->getClientOriginalExtension();
+        $fileName = Str::slug($name) . '-' . Str::slug($version) . '.' . $file->getClientOriginalExtension();
 
         // 3. Tentukan folder tujuan
-        $folder = 'project-packages/'.Str::slug($name);
+        $folder = 'project-packages/' . Str::slug($name);
 
         // 4. Simpan dengan nama baru menggunakan storeAs
         $path = $file->storeAs($folder, $fileName, 'public');
@@ -254,10 +274,10 @@ class ProjectController extends Controller
             return null;
         }
 
-        $name = Str::slug((string) $request->input('name', 'project'));
-        $folder = 'project-images/'.$name;
+        $slug = Str::slug((string) $request->input('slug', 'project'));
+        $folder = 'project-images/' . $slug;
         $file = $request->file($field);
-        $fileName = $field.'.'.$file->getClientOriginalExtension();
+        $fileName = $slug . '.' . $file->getClientOriginalExtension();
 
         return $file->storeAs($folder, $fileName, 'public');
     }

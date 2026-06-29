@@ -58,7 +58,7 @@ class ProjectController extends Controller
         if (! $syncedProject instanceof Project) {
             return response()->json([
                 'status' => false,
-                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID '.$project->id.'.',
+                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID ' . $project->id . '.',
             ], 422);
         }
 
@@ -90,6 +90,16 @@ class ProjectController extends Controller
         if ($request->hasFile('package_file')) {
             $this->deletePackageFile($project);
             $validated['package_file'] = $this->storePackageFile($request);
+        }
+
+        if ($request->hasFile('icon')) {
+            $this->deleteImageFile($project->icon);
+            $validated['icon'] = $this->storeImageFile($request, 'icon');
+        }
+
+        if ($request->hasFile('screenshot')) {
+            $this->deleteImageFile($project->screenshot);
+            $validated['screenshot'] = $this->storeImageFile($request, 'screenshot');
         }
 
         $project->update($validated);
@@ -125,8 +135,8 @@ class ProjectController extends Controller
             'plugin_wp_required' => ['nullable', 'boolean'],
             'github_url' => ['nullable', 'url', 'max:255'],
             'package_external_url' => ['nullable', 'url', 'max:255'],
-            'icon' => ['nullable', 'string', 'max:255'],
-            'screenshot' => ['nullable', 'string', 'max:255'],
+            'icon' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'screenshot' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'description' => ['nullable', 'string'],
             'type' => ['sometimes', 'required', Rule::in($supportedTypes)],
             'package_file' => ['nullable', 'file', 'mimes:zip', 'max:51200'],
@@ -183,8 +193,8 @@ class ProjectController extends Controller
         $name = $request->input('name');
         $version = $request->input('version');
         $file = $request->file('package_file');
-        $fileName = Str::slug($name).'-'.Str::slug($version).'.'.$file->getClientOriginalExtension();
-        $folder = 'project-packages/'.Str::slug($name);
+        $fileName = Str::slug($name) . '-' . Str::slug($version) . '.' . $file->getClientOriginalExtension();
+        $folder = 'project-packages/' . Str::slug($name);
 
         return $file->storeAs($folder, $fileName, 'public');
     }
@@ -204,10 +214,10 @@ class ProjectController extends Controller
             return null;
         }
 
-        $name = Str::slug((string) $request->input('name', 'project'));
-        $folder = 'project-images/'.$name;
+        $slug = Str::slug((string) $request->input('slug', 'project'));
+        $folder = 'project-images/' . $slug;
         $file = $request->file($field);
-        $fileName = $field.'.'.$file->getClientOriginalExtension();
+        $fileName = $slug . '.' . $file->getClientOriginalExtension();
 
         return $file->storeAs($folder, $fileName, 'public');
     }
@@ -225,7 +235,7 @@ class ProjectController extends Controller
     {
         $data = ProjectResource::make($project)->resolve($request);
         $downloadUrl = $data['package_external_url'] ?: $data['package_file_url'];
-        $changelogUrl = url('project/changelog/'.$project->slug);
+        $changelogUrl = url('project/changelog/' . $project->slug);
 
         return response()->json([
             'status' => true,
