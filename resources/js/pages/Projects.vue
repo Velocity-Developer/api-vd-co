@@ -175,6 +175,8 @@ const state = reactive<ProjectFormState>({
     description: '',
     type: 'project_internal',
     parent_id: noParentValue,
+    icon: '',
+    screenshot: ''
 });
 
 const filteredProjects = computed(() => {
@@ -475,12 +477,12 @@ const buildPayload = (): FormData => {
         payload.append('package_external_url', packageExternalUrl);
     }
 
-    if (icon !== null) {
-        payload.append('icon', icon);
+    if (state.icon !== null) {
+        payload.append('icon', state.icon);
     }
 
-    if (screenshot !== null) {
-        payload.append('screenshot', screenshot);
+    if (state.screenshot !== null) {
+        payload.append('screenshot', state.screenshot);
     }
 
     if (description !== null) {
@@ -914,7 +916,7 @@ watch(isChangelogModalOpen, (open) => {
             v-model:open="isModalOpen"
             :title="modalTitle"
             :description="modalDescription"
-            :ui="{ footer: 'justify-end' }"
+            :ui="{ footer: 'justify-end', content: 'min-w-4xl' }"
         >
             <template #body>
                 <UAlert
@@ -1095,7 +1097,62 @@ watch(isChangelogModalOpen, (open) => {
                         </UFormField>
                     </div>
 
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="border bg-gray-50 rounded-xl p-4 space-y-3">
+                        
+                        <div class="flex gap-2 items-center">
+                            <div class="text-rose-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-image" viewBox="0 0 16 16">
+                                <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
+                                <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
+                                </svg>
+                            </div>                            
+                            <p class="text-sm font-medium text-default">
+                                Upload Identity
+                            </p>
+                        </div>
+
+                        <UFormField
+                            name="icon"
+                            label="Icon"
+                            hint="Optional"
+                            :error="fieldError('icon')"
+                        >
+                            <UInput
+                                v-model="state.icon"
+                                placeholder="uploads/projects/icon.png"
+                                :disabled="isSaving"
+                                class="w-full"
+                            />
+                        </UFormField>
+
+                        <UFormField
+                            name="screenshot"
+                            label="Screenshot"
+                            hint="Optional"
+                            :error="fieldError('screenshot')"
+                        >
+                            <UInput
+                                v-model="state.screenshot"
+                                placeholder="uploads/projects/screenshot.png"
+                                :disabled="isSaving"
+                                class="w-full"
+                            />
+                        </UFormField>
+                    </div>
+                    
+                    <div class="border bg-gray-50 rounded-xl p-4 space-y-3">
+                        <div class="flex gap-2 items-center">
+                            <div class="text-rose-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-file-zip" viewBox="0 0 16 16">
+                                <path d="M6.5 7.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v.938l.4 1.599a1 1 0 0 1-.416 1.074l-.93.62a1 1 0 0 1-1.109 0l-.93-.62a1 1 0 0 1-.415-1.074l.4-1.599zm2 0h-1v.938a1 1 0 0 1-.03.243l-.4 1.598.93.62.93-.62-.4-1.598a1 1 0 0 1-.03-.243z"/>
+                                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm5.5-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9v1H8v1h1v1H8v1h1v1H7.5V5h-1V4h1V3h-1V2h1z"/>
+                                </svg>
+                            </div>                            
+                            <p class="text-sm font-medium text-default">
+                                File Package
+                            </p>
+                        </div>
+
                         <UFormField
                             name="package_external_url"
                             label="Package External URL"
@@ -1111,98 +1168,70 @@ watch(isChangelogModalOpen, (open) => {
                         </UFormField>
 
                         <UFormField
-                            name="icon"
-                            label="Icon"
-                            hint="Optional"
-                            :error="fieldError('icon')"
+                            name="package_file"
+                            :label="packageFileLabel"
+                            :hint="packageFileHint"
+                            :error="fieldError('package_file')"
                         >
-                            <UInput
-                                v-model="state.icon"
-                                placeholder="uploads/projects/icon.png"
+                            <input
+                                ref="packageFileInput"
+                                type="file"
+                                accept=".zip,application/zip"
                                 :disabled="isSaving"
-                                class="w-full"
-                            />
+                                class="block w-full rounded-md border border-default bg-default px-3 py-2 text-sm"
+                                @change="updatePackageFile"
+                            >
+                            <p
+                                v-if="packageFile"
+                                class="mt-2 text-xs text-muted"
+                            >
+                                File dipilih: {{ packageFile.name }}
+                            </p>
+
+
+                            <div
+                                v-if="showsCurrentPackageFile"
+                                class="mt-3 flex items-center gap-2"
+                            >                            
+                                <UButton
+                                    type="button"
+                                    label="Download current package"
+                                    icon="i-lucide-download"
+                                    color="success"
+                                    variant="soft"
+                                    :to="currentPackageFileUrl"
+                                    target="_blank"
+                                />
+                                <UButton
+                                    type="button"
+                                    label="Hapus file ZIP"
+                                    icon="i-lucide-trash"
+                                    color="error"
+                                    variant="soft"
+                                    :disabled="isSaving"
+                                    @click="markCurrentPackageForRemoval"
+                                />
+                            </div>
+                            
+                            <div
+                                v-else-if="isEditing && removePackageFile"
+                                class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2"
+                            >
+                                <span class="text-xs text-error">
+                                    File ZIP saat ini akan dihapus ketika project disimpan.
+                                </span>
+                                <UButton
+                                    type="button"
+                                    label="Batal hapus"
+                                    color="neutral"
+                                    variant="ghost"
+                                    size="xs"
+                                    :disabled="isSaving"
+                                    @click="keepCurrentPackageFile"
+                                />
+                            </div>
                         </UFormField>
                     </div>
-
-                    <UFormField
-                        name="screenshot"
-                        label="Screenshot"
-                        hint="Optional"
-                        :error="fieldError('screenshot')"
-                    >
-                        <UInput
-                            v-model="state.screenshot"
-                            placeholder="uploads/projects/screenshot.png"
-                            :disabled="isSaving"
-                            class="w-full"
-                        />
-                    </UFormField>
-
-                    <UFormField
-                        name="package_file"
-                        :label="packageFileLabel"
-                        :hint="packageFileHint"
-                        :error="fieldError('package_file')"
-                    >
-                        <input
-                            ref="packageFileInput"
-                            type="file"
-                            accept=".zip,application/zip"
-                            :disabled="isSaving"
-                            class="block w-full rounded-md border border-default bg-default px-3 py-2 text-sm"
-                            @change="updatePackageFile"
-                        >
-                        <p
-                            v-if="packageFile"
-                            class="mt-2 text-xs text-muted"
-                        >
-                            File dipilih: {{ packageFile.name }}
-                        </p>
-
-
-                        <div
-                            v-if="showsCurrentPackageFile"
-                            class="mt-3 flex items-center gap-2"
-                        >                            
-                            <UButton
-                                type="button"
-                                label="Download current package"
-                                icon="i-lucide-download"
-                                color="success"
-                                variant="soft"
-                                :to="currentPackageFileUrl"
-                                target="_blank"
-                            />
-                            <UButton
-                                type="button"
-                                label="Hapus file ZIP"
-                                icon="i-lucide-trash"
-                                color="error"
-                                variant="soft"
-                                :disabled="isSaving"
-                                @click="markCurrentPackageForRemoval"
-                            />
-                        </div>
-                        
-                        <div
-                            v-else-if="isEditing && removePackageFile"
-                            class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2"
-                        >
-                            <span class="text-xs text-error">
-                                File ZIP saat ini akan dihapus ketika project disimpan.
-                            </span>
-                            <UButton
-                                type="button"
-                                label="Batal hapus"
-                                color="neutral"
-                                variant="ghost"
-                                size="xs"
-                                :disabled="isSaving"
-                                @click="keepCurrentPackageFile"
-                            />
-                        </div>
-                    </UFormField>
 
                     <UFormField
                         name="description"
