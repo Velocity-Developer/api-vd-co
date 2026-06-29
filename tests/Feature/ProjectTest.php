@@ -78,8 +78,8 @@ test('authenticated users can view projects from the controller', function () {
         'github_url' => 'https://github.com/example/client-child-theme',
         'package_file' => 'project-packages/client-child-theme/client-child-theme-v1-4-2.zip',
         'package_external_url' => 'https://example.com/downloads/client-child-theme.zip',
-        'icon' => 'uploads/projects/client-child-theme/icon.png',
-        'screenshot' => 'uploads/projects/client-child-theme/screenshot.png',
+        'icon' => 'project-images/client-child-theme/icon.png',
+        'screenshot' => 'project-images/client-child-theme/screenshot.png',
         'description' => 'Child theme for a client project.',
     ]);
 
@@ -100,6 +100,8 @@ test('authenticated users can view projects from the controller', function () {
             ->where('projects.data.0.parent.name', 'Core Theme')
             ->where('projects.data.0.package_file', 'project-packages/client-child-theme/client-child-theme-v1-4-2.zip')
             ->where('projects.data.0.package_external_url', 'https://example.com/downloads/client-child-theme.zip')
+            ->where('projects.data.0.icon', 'project-images/client-child-theme/icon.png')
+            ->where('projects.data.0.screenshot', 'project-images/client-child-theme/screenshot.png')
             ->has('parentProjects', 2)
             ->where('projects.meta.total', 2));
 });
@@ -128,6 +130,8 @@ test('authenticated users can create a project', function () {
     $user = User::factory()->create();
     $parentProject = Project::factory()->create();
     $package = UploadedFile::fake()->create('velocity-addons.zip', 120, 'application/zip');
+    $icon = UploadedFile::fake()->image('icon.png');
+    $screenshot = UploadedFile::fake()->image('screenshot.png');
 
     $this->actingAs($user)
         ->post('/ajax/projects', [
@@ -151,6 +155,8 @@ test('authenticated users can create a project', function () {
         ->assertJsonPath('data.requires_php', '8.2')
         ->assertJsonPath('data.plugin_wp_required', true)
         ->assertJsonPath('data.type', 'wp_plugin')
+        ->assertJsonPath('data.icon', 'project-images/velocity-addons/icon.png')
+        ->assertJsonPath('data.screenshot', 'project-images/velocity-addons/screenshot.png')
         ->assertJsonPath('data.parent.id', $parentProject->id)
         ->assertJsonPath('data.parent.name', $parentProject->name);
 
@@ -210,13 +216,19 @@ test('authenticated users can update a project', function () {
     $user = User::factory()->create();
     $oldParent = Project::factory()->create(['name' => 'Old Parent']);
     $newParent = Project::factory()->create(['name' => 'New Parent']);
+    $replacementIcon = UploadedFile::fake()->image('updated-icon.png');
+    $replacementScreenshot = UploadedFile::fake()->image('updated-screenshot.png');
     $project = Project::factory()->for($oldParent, 'parent')->create([
         'name' => 'Initial Project',
         'type' => 'project_internal',
         'package_file' => 'project-packages/old-package.zip',
         'package_external_url' => 'https://downloads.example.com/old-package.zip',
+        'icon' => 'project-images/initial-project/icon.png',
+        'screenshot' => 'project-images/initial-project/screenshot.png',
     ]);
     Storage::disk('public')->put('project-packages/old-package.zip', 'old package');
+    Storage::disk('public')->put('project-images/initial-project/icon.png', 'old icon');
+    Storage::disk('public')->put('project-images/initial-project/screenshot.png', 'old screenshot');
     $replacementPackage = UploadedFile::fake()->create('updated-project.zip', 240, 'application/zip');
 
     $this->actingAs($user)
@@ -230,8 +242,8 @@ test('authenticated users can update a project', function () {
             'requires_php' => '8.2',
             'plugin_wp_required' => true,
             'package_external_url' => 'https://downloads.example.com/updated-project.zip',
-            'icon' => 'uploads/projects/updated-project/icon.png',
-            'screenshot' => 'uploads/projects/updated-project/screenshot.png',
+            'icon' => $replacementIcon,
+            'screenshot' => $replacementScreenshot,
             'package_file' => $replacementPackage,
         ])
         ->assertOk()
@@ -242,8 +254,8 @@ test('authenticated users can update a project', function () {
         ->assertJsonPath('data.plugin_wp_required', null)
         ->assertJsonPath('data.type', 'project_client')
         ->assertJsonPath('data.version', '3.0.0')
-        ->assertJsonPath('data.icon', 'uploads/projects/updated-project/icon.png')
-        ->assertJsonPath('data.screenshot', 'uploads/projects/updated-project/screenshot.png')
+        ->assertJsonPath('data.icon', 'project-images/updated-project/icon.png')
+        ->assertJsonPath('data.screenshot', 'project-images/updated-project/screenshot.png')
         ->assertJsonPath('data.parent.id', $newParent->id);
 
     $this->assertDatabaseHas('projects', [
@@ -266,10 +278,18 @@ test('authenticated users can update a project', function () {
         ->and($project->package_file)
         ->toStartWith('project-packages/')
         ->and($project->package_external_url)
-        ->toBe('https://downloads.example.com/updated-project.zip');
+        ->toBe('https://downloads.example.com/updated-project.zip')
+        ->and($project->icon)
+        ->toBe('project-images/updated-project/icon.png')
+        ->and($project->screenshot)
+        ->toBe('project-images/updated-project/screenshot.png');
 
     Storage::disk('public')->assertMissing('project-packages/old-package.zip');
+    Storage::disk('public')->assertMissing('project-images/initial-project/icon.png');
+    Storage::disk('public')->assertMissing('project-images/initial-project/screenshot.png');
     Storage::disk('public')->assertExists($project->package_file);
+    Storage::disk('public')->assertExists($project->icon);
+    Storage::disk('public')->assertExists($project->screenshot);
 });
 
 test('authenticated users can remove an existing package file', function () {

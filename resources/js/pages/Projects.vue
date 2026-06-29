@@ -35,6 +35,10 @@ type Project = {
     package_file: string | null;
     package_file_url: string | null;
     package_external_url: string | null;
+    icon: string | null;
+    icon_url: string | null;
+    screenshot: string | null;
+    screenshot_url: string | null;
     description: string | null;
     type: ProjectType;
     parent_id: number | null;
@@ -70,8 +74,6 @@ type ProjectFormState = {
     plugin_wp_required: boolean;
     github_url: string;
     package_external_url: string;
-    icon: string;
-    screenshot: string;
     description: string;
     type: ProjectType;
     parent_id: string;
@@ -160,8 +162,14 @@ const syncMessage = ref<string | null>(null);
 const syncMessageType = ref<'success' | 'error'>('success');
 const serverErrors = ref<Record<string, string>>({});
 const packageFile = ref<File | null>(null);
+const iconFile = ref<File | null>(null);
+const screenshotFile = ref<File | null>(null);
 const packageFileInput = ref<HTMLInputElement | null>(null);
+const iconFileInput = ref<HTMLInputElement | null>(null);
+const screenshotFileInput = ref<HTMLInputElement | null>(null);
 const removePackageFile = ref(false);
+const removeIcon = ref(false);
+const removeScreenshot = ref(false);
 
 const state = reactive<ProjectFormState>({
     name: '',
@@ -175,8 +183,6 @@ const state = reactive<ProjectFormState>({
     description: '',
     type: 'project_internal',
     parent_id: noParentValue,
-    icon: '',
-    screenshot: ''
 });
 
 const filteredProjects = computed(() => {
@@ -252,6 +258,38 @@ const currentPackageFileUrl = computed(() => {
 });
 const showsCurrentPackageFile = computed(() => {
     return isEditing.value && currentPackageFileUrl.value !== null && !removePackageFile.value;
+});
+const currentIconUrl = computed(() => {
+    if (editingProjectId.value === null) {
+        return null;
+    }
+
+    return props.projects.data.find(
+        (project) => project.id === editingProjectId.value,
+    )?.icon_url ?? null;
+});
+const currentScreenshotUrl = computed(() => {
+    if (editingProjectId.value === null) {
+        return null;
+    }
+
+    return props.projects.data.find(
+        (project) => project.id === editingProjectId.value,
+    )?.screenshot_url ?? null;
+});
+const iconPreviewUrl = computed(() => {
+    if (iconFile.value) {
+        return URL.createObjectURL(iconFile.value);
+    }
+
+    return removeIcon.value ? null : currentIconUrl.value;
+});
+const screenshotPreviewUrl = computed(() => {
+    if (screenshotFile.value) {
+        return URL.createObjectURL(screenshotFile.value);
+    }
+
+    return removeScreenshot.value ? null : currentScreenshotUrl.value;
 });
 
 const projectTypeOptions = [
@@ -402,9 +440,19 @@ const openEditModal = (project: Project): void => {
         ? String(project.parent_id)
         : noParentValue;
     packageFile.value = null;
+    iconFile.value = null;
+    screenshotFile.value = null;
     removePackageFile.value = false;
+    removeIcon.value = false;
+    removeScreenshot.value = false;
     if (packageFileInput.value) {
         packageFileInput.value.value = '';
+    }
+    if (iconFileInput.value) {
+        iconFileInput.value.value = '';
+    }
+    if (screenshotFileInput.value) {
+        screenshotFileInput.value.value = '';
     }
     editingProjectId.value = project.id;
     formMessage.value = null;
@@ -477,12 +525,12 @@ const buildPayload = (): FormData => {
         payload.append('package_external_url', packageExternalUrl);
     }
 
-    if (state.icon !== null) {
-        payload.append('icon', state.icon);
+    if (iconFile.value) {
+        payload.append('icon', iconFile.value);
     }
 
-    if (state.screenshot !== null) {
-        payload.append('screenshot', state.screenshot);
+    if (screenshotFile.value) {
+        payload.append('screenshot', screenshotFile.value);
     }
 
     if (description !== null) {
@@ -499,6 +547,14 @@ const buildPayload = (): FormData => {
 
     if (removePackageFile.value) {
         payload.append('remove_package_file', '1');
+    }
+
+    if (removeIcon.value) {
+        payload.append('remove_icon', '1');
+    }
+
+    if (removeScreenshot.value) {
+        payload.append('remove_screenshot', '1');
     }
 
     return payload;
@@ -563,6 +619,25 @@ const updatePackageFile = (event: Event): void => {
     }
 };
 
+const updateImageFile = (event: Event, field: 'icon' | 'screenshot'): void => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0] ?? null;
+
+    if (field === 'icon') {
+        iconFile.value = file;
+        if (file) {
+            removeIcon.value = false;
+        }
+
+        return;
+    }
+
+    screenshotFile.value = file;
+    if (file) {
+        removeScreenshot.value = false;
+    }
+};
+
 const markCurrentPackageForRemoval = (): void => {
     removePackageFile.value = true;
     packageFile.value = null;
@@ -574,6 +649,34 @@ const markCurrentPackageForRemoval = (): void => {
 
 const keepCurrentPackageFile = (): void => {
     removePackageFile.value = false;
+};
+
+const removeCurrentImage = (field: 'icon' | 'screenshot'): void => {
+    if (field === 'icon') {
+        removeIcon.value = true;
+        iconFile.value = null;
+        if (iconFileInput.value) {
+            iconFileInput.value.value = '';
+        }
+
+        return;
+    }
+
+    removeScreenshot.value = true;
+    screenshotFile.value = null;
+    if (screenshotFileInput.value) {
+        screenshotFileInput.value.value = '';
+    }
+};
+
+const keepCurrentImage = (field: 'icon' | 'screenshot'): void => {
+    if (field === 'icon') {
+        removeIcon.value = false;
+
+        return;
+    }
+
+    removeScreenshot.value = false;
 };
 
 const syncGithubRelease = async (project: Project): Promise<void> => {
@@ -1097,47 +1200,148 @@ watch(isChangelogModalOpen, (open) => {
                         </UFormField>
                     </div>
 
-                    <div class="border bg-gray-50 rounded-xl p-4 space-y-3">
-                        
+                    <div class="rounded-xl border border-default bg-muted/30 p-4 space-y-4">
                         <div class="flex gap-2 items-center">
-                            <div class="text-rose-700">
+                            <div class="text-primary">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-image" viewBox="0 0 16 16">
-                                <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
-                                <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
+                                    <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
+                                    <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
                                 </svg>
-                            </div>                            
+                            </div>
                             <p class="text-sm font-medium text-default">
                                 Upload Identity
                             </p>
                         </div>
 
-                        <UFormField
-                            name="icon"
-                            label="Icon"
-                            hint="Optional"
-                            :error="fieldError('icon')"
-                        >
-                            <UInput
-                                v-model="state.icon"
-                                placeholder="uploads/projects/icon.png"
-                                :disabled="isSaving"
-                                class="w-full"
-                            />
-                        </UFormField>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <UFormField
+                                name="icon"
+                                label="Icon"
+                                hint="JPG, PNG, WEBP. Optional"
+                                :error="fieldError('icon')"
+                            >
+                                <input
+                                    ref="iconFileInput"
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    :disabled="isSaving"
+                                    class="block w-full rounded-md border border-default bg-default px-3 py-2 text-sm"
+                                    @change="(event) => updateImageFile(event, 'icon')"
+                                >
 
-                        <UFormField
-                            name="screenshot"
-                            label="Screenshot"
-                            hint="Optional"
-                            :error="fieldError('screenshot')"
-                        >
-                            <UInput
-                                v-model="state.screenshot"
-                                placeholder="uploads/projects/screenshot.png"
-                                :disabled="isSaving"
-                                class="w-full"
-                            />
-                        </UFormField>
+                                <div
+                                    v-if="iconPreviewUrl"
+                                    class="mt-3 space-y-2"
+                                >
+                                    <img
+                                        :src="iconPreviewUrl"
+                                        alt="Preview icon"
+                                        class="h-24 w-24 rounded-lg border border-default object-cover"
+                                    >
+                                    <div class="flex flex-wrap gap-2">
+                                        <UButton
+                                            v-if="currentIconUrl"
+                                            type="button"
+                                            label="Lihat icon"
+                                            color="neutral"
+                                            variant="soft"
+                                            :to="currentIconUrl"
+                                            target="_blank"
+                                        />
+                                        <UButton
+                                            type="button"
+                                            label="Hapus icon"
+                                            color="error"
+                                            variant="soft"
+                                            :disabled="isSaving"
+                                            @click="removeCurrentImage('icon')"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-else-if="isEditing && removeIcon"
+                                    class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2"
+                                >
+                                    <span class="text-xs text-error">
+                                        Icon saat ini akan dihapus ketika project disimpan.
+                                    </span>
+                                    <UButton
+                                        type="button"
+                                        label="Batal hapus"
+                                        color="neutral"
+                                        variant="ghost"
+                                        size="xs"
+                                        :disabled="isSaving"
+                                        @click="keepCurrentImage('icon')"
+                                    />
+                                </div>
+                            </UFormField>
+
+                            <UFormField
+                                name="screenshot"
+                                label="Screenshot"
+                                hint="JPG, PNG, WEBP. Optional"
+                                :error="fieldError('screenshot')"
+                            >
+                                <input
+                                    ref="screenshotFileInput"
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    :disabled="isSaving"
+                                    class="block w-full rounded-md border border-default bg-default px-3 py-2 text-sm"
+                                    @change="(event) => updateImageFile(event, 'screenshot')"
+                                >
+
+                                <div
+                                    v-if="screenshotPreviewUrl"
+                                    class="mt-3 space-y-2"
+                                >
+                                    <img
+                                        :src="screenshotPreviewUrl"
+                                        alt="Preview screenshot"
+                                        class="h-32 w-full rounded-lg border border-default object-cover"
+                                    >
+                                    <div class="flex flex-wrap gap-2">
+                                        <UButton
+                                            v-if="currentScreenshotUrl"
+                                            type="button"
+                                            label="Lihat screenshot"
+                                            color="neutral"
+                                            variant="soft"
+                                            :to="currentScreenshotUrl"
+                                            target="_blank"
+                                        />
+                                        <UButton
+                                            type="button"
+                                            label="Hapus screenshot"
+                                            color="error"
+                                            variant="soft"
+                                            :disabled="isSaving"
+                                            @click="removeCurrentImage('screenshot')"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-else-if="isEditing && removeScreenshot"
+                                    class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-error/30 bg-error/10 px-3 py-2"
+                                >
+                                    <span class="text-xs text-error">
+                                        Screenshot saat ini akan dihapus ketika project disimpan.
+                                    </span>
+                                    <UButton
+                                        type="button"
+                                        label="Batal hapus"
+                                        color="neutral"
+                                        variant="ghost"
+                                        size="xs"
+                                        :disabled="isSaving"
+                                        @click="keepCurrentImage('screenshot')"
+                                    />
+                                </div>
+                            </UFormField>
+                        </div>
                     </div>
                     
                     <div class="border bg-gray-50 rounded-xl p-4 space-y-3">

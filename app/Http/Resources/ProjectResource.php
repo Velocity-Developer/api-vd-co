@@ -30,13 +30,15 @@ class ProjectResource extends JsonResource
             'package_file_url' => $this->packageFileUrl(),
             'package_external_url' => $this->package_external_url,
             'icon' => $this->icon,
+            'icon_url' => $this->fileUrl($this->icon),
             'screenshot' => $this->screenshot,
+            'screenshot_url' => $this->fileUrl($this->screenshot),
             'description' => $this->description,
             'type' => $this->type,
             'parent_id' => $this->parent_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'parent' => $this->whenLoaded('parent', fn (): ?array => $this->parent?->only([
+            'parent' => $this->whenLoaded('parent', fn(): ?array => $this->parent?->only([
                 'id',
                 'name',
             ])),
@@ -45,10 +47,15 @@ class ProjectResource extends JsonResource
 
     private function packageFileUrl(): ?string
     {
+        return $this->fileUrl($this->package_file);
+    }
+
+    private function fileUrl(?string $path): ?string
+    {
         return match (true) {
-            $this->package_file === null => null,
-            str_starts_with($this->package_file, 'http') => $this->package_file,
-            default => Storage::disk('public')->url($this->package_file),
+            $path === null => null,
+            str_starts_with($path, 'http') => $path,
+            default => Storage::disk('public')->url($path),
         };
     }
 }

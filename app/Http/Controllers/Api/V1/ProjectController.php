@@ -198,6 +198,29 @@ class ProjectController extends Controller
         Storage::disk('public')->delete($project->package_file);
     }
 
+    private function storeImageFile(Request $request, string $field): ?string
+    {
+        if (! $request->hasFile($field)) {
+            return null;
+        }
+
+        $name = Str::slug((string) $request->input('name', 'project'));
+        $folder = 'project-images/'.$name;
+        $file = $request->file($field);
+        $fileName = $field.'.'.$file->getClientOriginalExtension();
+
+        return $file->storeAs($folder, $fileName, 'public');
+    }
+
+    private function deleteImageFile(?string $path): void
+    {
+        if ($path === null || str_starts_with($path, 'http')) {
+            return;
+        }
+
+        Storage::disk('public')->delete($path);
+    }
+
     private function projectResponse(Request $request, Project $project): JsonResponse
     {
         $data = ProjectResource::make($project)->resolve($request);
