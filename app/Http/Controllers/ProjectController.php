@@ -277,7 +277,7 @@ class ProjectController extends Controller
         $slug = Str::slug((string) $request->input('slug', 'project'));
         $folder = 'project-images/' . $slug;
         $file = $request->file($field);
-        $fileName = $slug . '.' . $file->getClientOriginalExtension();
+        $fileName = $field . '.' . $file->getClientOriginalExtension();
 
         return $file->storeAs($folder, $fileName, 'public');
     }
