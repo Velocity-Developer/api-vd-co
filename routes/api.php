@@ -36,6 +36,7 @@ Route::middleware(['license'])->prefix('v1')->group(function () {
     Route::get('/news/posts', [ApiV1NewsController::class, 'posts']);
     Route::get('/license', [ApiV1LicenseController::class, 'index']);
     Route::post('/article-generator', [ArticleGeneratorController::class, 'generate']);
+    Route::get('/recommended-images', [PostController::class, 'recommendedImages']);
 });
 
 Route::middleware('registered.server.ip')->prefix('v1')->group(function () {
