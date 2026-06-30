@@ -23,7 +23,7 @@ class EnsureRegisteredServerIp
         if ($ipAddress === null || ! Server::query()->where('server_ip', $ipAddress)->exists()) {
             $response = response()->json([
                 'status' => false,
-                'message' => 'IP address is not registered.',
+                'message' => 'IP address is not registered: ' . $ipAddress,
             ], Response::HTTP_FORBIDDEN);
 
             $this->logRequest($request, $response->getStatusCode());
