@@ -17,7 +17,7 @@ class BeaverBuilderLayoutController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return BeaverBuilderLayoutResource::collection(
-            BeaverBuilderLayout::query()
+            BeaverBuilderLayout::with('categories')
                 ->latest()
                 ->paginate(),
         );
