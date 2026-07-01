@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\DocsApiController;
 use App\Http\Controllers\ArticleGeneratorController;
+use App\Http\Controllers\BeaverBuilderLayoutController;
+use App\Http\Controllers\BeaverBuilderTemplateCategoryController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LicenseController;
@@ -59,6 +61,8 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
         'websites' => WebsiteController::class,
         'servers' => ServerController::class,
         'request-logs' => RequestLogController::class,
+        'beaver-builder-layouts' => BeaverBuilderLayoutController::class,
+        'beaver-builder-template-categories' => BeaverBuilderTemplateCategoryController::class,
     ]);
 
     Route::post('article-generator', [ArticleGeneratorController::class, 'generate']);
