@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\DocsApiController;
 use App\Http\Controllers\RouteTesterController;
 use App\Http\Controllers\ArticleGeneratorController;
 use App\Http\Controllers\BeaverBuilderLayoutController;
@@ -44,7 +43,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('admin/requestlogs', [RequestLogController::class, 'index'])->name('requestlogsIndex');
 
-    Route::get('admin/docs-api', DocsApiController::class)->name('docs-api');
     Route::get('admin/route-testers', RouteTesterController::class)->name('route-testers');
 });
 
