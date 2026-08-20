@@ -43,17 +43,21 @@ class EnsureRegisteredServerIp
         $license = $request->header('license');
         $source = $request->header('source');
 
-        $website = Website::query()->firstOrCreate(
-            ['domain' => $source],
-            ['license_key' => $license ?? ''],
-        );
+        $websiteId = null;
+        if ($source) {
+            $website = Website::query()->firstOrCreate(
+                ['domain' => $source],
+                ['license_key' => $license ?? ''],
+            );
+            $websiteId = $website->id;
+        }
 
         RequestLog::create([
             'route' => $request->getPathInfo(),
             'method' => $request->method(),
             'request' => $request->input(),
             'status' => $status,
-            'website_id' => $website->id,
+            'website_id' => $websiteId,
             'license_id' => null,
         ]);
     }
