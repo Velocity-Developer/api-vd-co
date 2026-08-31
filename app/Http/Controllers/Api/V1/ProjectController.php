@@ -15,6 +15,36 @@ use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
+    /**
+     * List all projects (paginated).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $type = $request->query('type');
+        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min($perPage, 100));
+
+        $query = Project::query()->with('parent:id,name')->latest('id');
+
+        if ($type !== null && $type !== '') {
+            $query->where('type', $type);
+        }
+
+        $projects = $query->paginate($perPage);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Success',
+            'data' => ProjectResource::collection($projects),
+            'meta' => [
+                'current_page' => $projects->currentPage(),
+                'last_page' => $projects->lastPage(),
+                'per_page' => $projects->perPage(),
+                'total' => $projects->total(),
+            ],
+        ]);
+    }
+
     public function show(Request $request, string $slug): JsonResponse
     {
         $project = Project::query()

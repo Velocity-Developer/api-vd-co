@@ -53,6 +53,7 @@ Route::middleware('registered.server.ip')->prefix('v1')->group(function () {
 });
 
 Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
+    Route::get('/projects', [ApiV1ProjectController::class, 'index']);
     Route::get('/project/{slug}', [ApiV1ProjectController::class, 'show']);
     Route::get('/tgm-plugins', ApiV1TgmPluginController::class);
 });
