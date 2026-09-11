@@ -29,6 +29,11 @@ class ProjectController extends Controller
         return $this->renderIndex('Projects', ['wp_theme', 'wp_theme_child'], $request);
     }
 
+    public function plugins(Request $request): InertiaResponse
+    {
+        return $this->renderIndex('Projects', ['wp_plugin'], $request);
+    }
+
     /**
      * @param  array<int, string>|null  $types
      */
@@ -45,7 +50,11 @@ class ProjectController extends Controller
         );
 
         return Inertia::render($page, [
-            'pageTitle' => $types ? 'Themes' : 'Projects',
+            'pageTitle' => match ($types) {
+                ['wp_theme', 'wp_theme_child'] => 'Themes',
+                ['wp_plugin'] => 'Plugins',
+                default => 'Projects',
+            },
             'projects' => $projects,
             'parentProjects' => Project::query()
                 ->orderBy('name')

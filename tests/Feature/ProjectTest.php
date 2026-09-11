@@ -125,6 +125,24 @@ test('themes page only shows WordPress themes and child themes', function () {
             ->where('projects.meta.total', 2));
 });
 
+test('plugins page only shows WordPress plugins', function () {
+    $user = User::factory()->create();
+    $plugin = Project::factory()->create(['type' => 'wp_plugin']);
+    Project::factory()->create(['type' => 'wp_theme']);
+    Project::factory()->create(['type' => 'project_client']);
+
+    $this->actingAs($user)
+        ->get(route('plugins'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Projects')
+            ->where('pageTitle', 'Plugins')
+            ->has('projects.data', 1)
+            ->where('projects.data.0.id', $plugin->id)
+            ->where('projects.data.0.type', 'wp_plugin')
+            ->where('projects.meta.total', 1));
+});
+
 test('wordpress plugin project boolean field is exposed as a real boolean', function () {
     $user = User::factory()->create();
     $pluginProject = Project::factory()->create([

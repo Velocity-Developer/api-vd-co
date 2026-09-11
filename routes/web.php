@@ -29,6 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/posts', 'Posts')->name('posts');
     Route::get('admin/projects', [ProjectController::class, 'index'])->name('projects');
     Route::get('admin/themes', [ProjectController::class, 'themes'])->name('themes');
+    Route::get('admin/plugins', [ProjectController::class, 'plugins'])->name('plugins');
     Route::inertia('admin/users', 'Users')->name('users');
     Route::inertia('admin/categories', 'Categories')->name('categories');
     Route::inertia('admin/tags', 'Tags')->name('tags');
