@@ -57,6 +57,7 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/project/{slug}', [ApiV1ProjectController::class, 'show']);
     Route::get('/tgm-plugins', ApiV1TgmPluginController::class);
     Route::get('/themes', [ApiV1ProjectController::class, 'themes']);
+    Route::get('/plugins', [ApiV1ProjectController::class, 'plugins']);
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {

@@ -143,6 +143,20 @@ test('plugins page only shows WordPress plugins', function () {
             ->where('projects.meta.total', 1));
 });
 
+test('v1 plugins API only returns WordPress plugins', function () {
+    $plugin = Project::factory()->create(['type' => 'wp_plugin']);
+    Project::factory()->create(['type' => 'wp_theme']);
+    Project::factory()->create(['type' => 'project_client']);
+
+    $this->getJson('/api/v1/plugins', [
+        'signature' => md5(now()->format('dmY')),
+    ])
+        ->assertOk()
+        ->assertJsonPath('meta.total', 1)
+        ->assertJsonPath('data.0.id', $plugin->id)
+        ->assertJsonPath('data.0.type', 'wp_plugin');
+});
+
 test('wordpress plugin project boolean field is exposed as a real boolean', function () {
     $user = User::factory()->create();
     $pluginProject = Project::factory()->create([
