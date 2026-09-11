@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class Media extends Model
 {
@@ -20,6 +22,29 @@ class Media extends Model
     protected function casts(): array
     {
         return ['metadata' => 'array'];
+    }
+
+    public static function createFromUpload(UploadedFile $file, array $attributes = []): self
+    {
+        $directory = 'media/'.now()->format('Y/m');
+        $disk = $attributes['disk'] ?? 'public';
+        $path = $file->store($directory, $disk);
+
+        return static::create(array_merge($attributes, [
+            'disk' => $disk,
+            'path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'file_name' => basename($path),
+            'extension' => $file->extension(),
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize(),
+        ]));
+    }
+
+    public function deleteFile(): void
+    {
+        Storage::disk($this->disk)->delete($this->path);
+        $this->delete();
     }
 
     public function mediable(): MorphTo
