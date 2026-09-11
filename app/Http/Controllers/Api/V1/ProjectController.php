@@ -88,7 +88,7 @@ class ProjectController extends Controller
         if (! $syncedProject instanceof Project) {
             return response()->json([
                 'status' => false,
-                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID '.$project->id.'.',
+                'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID ' . $project->id . '.',
             ], 422);
         }
 
@@ -223,8 +223,8 @@ class ProjectController extends Controller
         $name = $request->input('name');
         $version = $request->input('version');
         $file = $request->file('package_file');
-        $fileName = Str::slug($name).'-'.Str::slug($version).'.'.$file->getClientOriginalExtension();
-        $folder = 'project-packages/'.Str::slug($name);
+        $fileName = Str::slug($name) . '-' . Str::slug($version) . '.' . $file->getClientOriginalExtension();
+        $folder = 'project-packages/' . Str::slug($name);
 
         return $file->storeAs($folder, $fileName, 'public');
     }
@@ -245,9 +245,9 @@ class ProjectController extends Controller
         }
 
         $slug = Str::slug((string) $request->input('slug', 'project'));
-        $folder = 'project-images/'.$slug;
+        $folder = 'project-images/' . $slug;
         $file = $request->file($field);
-        $fileName = $field.'.'.$file->getClientOriginalExtension();
+        $fileName = $field . '.' . $file->getClientOriginalExtension();
 
         return $file->storeAs($folder, $fileName, 'public');
     }
@@ -265,7 +265,7 @@ class ProjectController extends Controller
     {
         $data = ProjectResource::make($project)->resolve($request);
         $downloadUrl = $data['package_external_url'] ?: $data['package_file_url'];
-        $changelogUrl = url('project/changelog/'.$project->slug);
+        $changelogUrl = url('project/changelog/' . $project->slug);
 
         return response()->json([
             'status' => true,
@@ -274,6 +274,48 @@ class ProjectController extends Controller
                 Arr::except($data, ['created_at', 'updated_at']),
                 ['download_url' => $downloadUrl, 'details_url' => $changelogUrl],
             ),
+        ]);
+    }
+    /**
+     * List WordPress themes and child themes.
+     */
+    public function themes(Request $request): JsonResponse
+    {
+        $request->merge(['type' => null]);
+
+        return $this->indexWithTypes($request, ['wp_theme', 'wp_theme_child']);
+    }
+
+
+    /**
+     * @param  array<int, string>|null  $types
+     */
+    private function indexWithTypes(Request $request, ?array $types = null): JsonResponse
+    {
+        $type = $request->query('type', null);
+        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min($perPage, 100));
+
+        $query = Project::query()->with('parent:id,name')->latest('id');
+
+        if ($types !== null) {
+            $query->whereIn('type', $types);
+        } elseif ($type !== null && $type !== '') {
+            $query->where('type', $type);
+        }
+
+        $projects = $query->paginate($perPage);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Success',
+            'data' => ProjectResource::collection($projects),
+            'meta' => [
+                'current_page' => $projects->currentPage(),
+                'last_page' => $projects->lastPage(),
+                'per_page' => $projects->perPage(),
+                'total' => $projects->total(),
+            ],
         ]);
     }
 }
