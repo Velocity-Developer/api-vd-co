@@ -173,6 +173,7 @@ const removeScreenshot = ref(false);
 
 const state = reactive<ProjectFormState>({
     name: '',
+    paket: '',
     slug: '',
     version: '',
     requires_wp: '',
@@ -400,6 +401,7 @@ const validate = (formState: Partial<ProjectFormState>): FormError[] => {
 
 const resetForm = (): void => {
     state.name = '';
+    state.paket = '';
     state.slug = '';
     state.version = '';
     state.requires_wp = '';
@@ -500,6 +502,10 @@ const buildPayload = (): FormData => {
     const description = nullableTrimmed(state.description);
     const parentId =
         state.parent_id === noParentValue ? null : Number(state.parent_id);
+
+    if (paket !== null) {
+        payload.append('paket', paket);
+    }
 
     if (version !== null) {
         payload.append('version', version);
@@ -1068,6 +1074,20 @@ watch(isChangelogModalOpen, (open) => {
                     </UFormField>
 
                     <div class="grid gap-4 sm:grid-cols-2">
+                        <UFormField
+                            name="paket"
+                            label="Paket"
+                            hint="Optional"
+                            :error="fieldError('paket')"
+                        >
+                            <UInput
+                                v-model="state.paket"
+                                placeholder="Paket Pro"
+                                :disabled="isSaving"
+                                class="w-full"
+                            />
+                        </UFormField>
+
                         <UFormField
                             name="type"
                             label="Type"

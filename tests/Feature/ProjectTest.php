@@ -136,6 +136,7 @@ test('authenticated users can create a project', function () {
     $this->actingAs($user)
         ->post('/ajax/projects', [
             'name' => 'Velocity Addons',
+            'paket' => 'Paket Pro',
             'slug' => 'Velocity Addons Terbaru',
             'version' => '2.1.0',
             'requires_wp' => '6.7',
@@ -162,6 +163,7 @@ test('authenticated users can create a project', function () {
 
     $this->assertDatabaseHas('projects', [
         'name' => 'Velocity Addons',
+        'paket' => 'Paket Pro',
         'slug' => 'velocity-addons-terbaru',
         'requires_wp' => '6.7',
         'requires_php' => '8.2',

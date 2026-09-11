@@ -157,10 +157,12 @@ class ProjectController extends Controller
         return [
             'name' => array_values(array_filter([
                 $isUpdate ? 'sometimes' : null,
+                Rule::unique('projects', 'name')->ignore($project),
                 'required',
                 'string',
                 'max:255',
             ])),
+            'paket' => ['nullable', 'string', 'max:255'],
             'slug' => array_values(array_filter([
                 $isUpdate ? 'sometimes' : null,
                 'required',
