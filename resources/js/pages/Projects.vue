@@ -4,7 +4,7 @@ import type { FormError, FormSubmitEvent, TableColumn } from '@nuxt/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, reactive, ref, watch } from 'vue';
 import ProjectChangelogs from '@/components/ProjectChangelogs.vue';
-import { projects as projectsPage } from '@/routes';
+import { projects as projectsPage, themes as themesPage } from '@/routes';
 
 type ProjectType =
     | 'project_internal'
@@ -595,6 +595,10 @@ const refreshProjects = (): void => {
     visitPage(currentPage.value);
 };
 
+const projectsRoute = computed(() =>
+    props.pageTitle === 'Themes' ? themesPage : projectsPage,
+);
+
 const showSyncMessage = (
     message: string,
     type: 'success' | 'error',
@@ -764,7 +768,7 @@ const visitPage = (page: number): void => {
     isLoading.value = true;
 
     router.get(
-        projectsPage.url({
+        projectsRoute.value.url({
             query: {
                 page,
                 ...(selectedPaket.value !== '__all__' && { paket: selectedPaket.value }),
