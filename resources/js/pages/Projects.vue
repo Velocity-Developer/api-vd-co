@@ -26,6 +26,7 @@ type ParentProjectOption = {
 type Project = {
     id: number;
     name: string;
+    paket: string | null;
     slug: string;
     version: string | null;
     requires: string | null;
@@ -293,6 +294,13 @@ const screenshotPreviewUrl = computed(() => {
     return removeScreenshot.value ? null : currentScreenshotUrl.value;
 });
 
+const paketOptions = [
+    { label: 'Kosongkan paket', value: '__empty__' },
+    { label: 'E', value: 'E' },
+    { label: 'F', value: 'F' },
+    { label: 'G', value: 'G' },
+];
+
 const projectTypeOptions = [
     { label: 'Internal Project', value: 'project_internal' },
     { label: 'Client Project', value: 'project_client' },
@@ -429,6 +437,7 @@ const openCreateModal = (): void => {
 
 const openEditModal = (project: Project): void => {
     state.name = project.name;
+    state.paket = project.paket ?? '__empty__';
     state.slug = project.slug;
     state.version = project.version ?? '';
     state.requires_wp = project.requires ?? '';
@@ -499,13 +508,12 @@ const buildPayload = (): FormData => {
     const requiresPhp = nullableTrimmed(state.requires_php);
     const githubUrl = nullableTrimmed(state.github_url);
     const packageExternalUrl = nullableTrimmed(state.package_external_url);
+    const paket = state.paket === '__empty__' ? null : nullableTrimmed(state.paket);
     const description = nullableTrimmed(state.description);
     const parentId =
         state.parent_id === noParentValue ? null : Number(state.parent_id);
 
-    if (paket !== null) {
-        payload.append('paket', paket);
-    }
+    payload.append('paket', paket ?? '');
 
     if (version !== null) {
         payload.append('version', version);
@@ -1080,9 +1088,10 @@ watch(isChangelogModalOpen, (open) => {
                             hint="Optional"
                             :error="fieldError('paket')"
                         >
-                            <UInput
+                            <USelect
                                 v-model="state.paket"
-                                placeholder="Paket Pro"
+                                :items="paketOptions"
+                                placeholder="Pilih paket"
                                 :disabled="isSaving"
                                 class="w-full"
                             />
