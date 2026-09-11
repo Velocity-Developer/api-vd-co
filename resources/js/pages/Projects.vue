@@ -78,6 +78,7 @@ type ProjectFormState = {
     description: string;
     type: ProjectType;
     parent_id: string;
+    paket: string;
 };
 
 type ValidationResponse = {
@@ -92,6 +93,7 @@ type MessageResponse = {
 const noParentValue = '__none__';
 
 const props = defineProps<{
+    pageTitle: string;
     projects: ProjectsResponse;
     parentProjects: ParentProjectOption[];
 }>();
@@ -107,7 +109,7 @@ defineOptions({
     },
 });
 
-const columns: TableColumn<Project>[] = [
+const columns = computed<TableColumn<Project>[]>(() => [
     {
         accessorKey: 'name',
         header: 'Project',
@@ -116,6 +118,9 @@ const columns: TableColumn<Project>[] = [
         accessorKey: 'type',
         header: 'Type',
     },
+    ...(props.pageTitle === 'Themes'
+        ? [{ accessorKey: 'paket', header: 'Paket' }]
+        : []),
     {
         accessorKey: 'version',
         header: 'Version',
@@ -135,7 +140,7 @@ const columns: TableColumn<Project>[] = [
     {
         id: 'actions',
     },
-];
+]);
 
 const projectTypeLabels: Record<ProjectType, string> = {
     project_internal: 'Internal',
@@ -150,6 +155,8 @@ const projectTypeLabel = (type: ProjectType): string => {
 };
 
 const search = ref('');
+const selectedPaket = ref('__all__');
+const selectedType = ref('__all__');
 const currentPage = ref(props.projects.meta.current_page);
 const isLoading = ref(false);
 const isModalOpen = ref(false);
@@ -190,11 +197,10 @@ const state = reactive<ProjectFormState>({
 const filteredProjects = computed(() => {
     const query = search.value.trim().toLowerCase();
 
-    if (query === '') {
-        return props.projects.data;
-    }
-
     return props.projects.data.filter((project) => {
+        if (query === '') {
+            return true;
+        }
         const searchableContent = [
             project.name,
             project.slug,
@@ -299,6 +305,17 @@ const paketOptions = [
     { label: 'E', value: 'E' },
     { label: 'F', value: 'F' },
     { label: 'G', value: 'G' },
+];
+
+const paketFilterOptions = [
+    { label: 'Semua Paket', value: '__all__' },
+    ...paketOptions.filter((option) => option.value !== '__empty__'),
+];
+
+const themeTypeOptions = [
+    { label: 'Semua Type', value: '__all__' },
+    { label: 'WP Theme', value: 'wp_theme' },
+    { label: 'WP Child Theme', value: 'wp_theme_child' },
 ];
 
 const projectTypeOptions = [
@@ -748,7 +765,11 @@ const visitPage = (page: number): void => {
 
     router.get(
         projectsPage.url({
-            query: { page },
+            query: {
+                page,
+                ...(selectedPaket.value !== '__all__' && { paket: selectedPaket.value }),
+                ...(selectedType.value !== '__all__' && { type: selectedType.value }),
+            },
         }),
         {},
         {
@@ -761,6 +782,10 @@ const visitPage = (page: number): void => {
         },
     );
 };
+
+watch([selectedPaket, selectedType], () => {
+    visitPage(1);
+});
 
 watch(
     () => state.name,
@@ -812,7 +837,7 @@ watch(isChangelogModalOpen, (open) => {
 </script>
 
 <template>
-    <Head title="Projects" />
+    <Head :title="props.pageTitle" />
 
     <div>
         <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
@@ -838,7 +863,7 @@ watch(isChangelogModalOpen, (open) => {
             >
                 <div>
                     <h1 class="text-2xl font-semibold text-highlighted">
-                        Projects
+                        {{ props.pageTitle }}
                     </h1>
                     <p class="text-sm text-muted">
                         {{ paginationSummary }}
@@ -853,6 +878,21 @@ watch(isChangelogModalOpen, (open) => {
                         :disabled="isLoading"
                         class="w-full sm:w-72"
                     />
+
+                    <template v-if="props.pageTitle === 'Themes'">
+                        <USelect
+                            v-model="selectedPaket"
+                            :items="paketFilterOptions"
+                            class="w-36"
+                            aria-label="Filter paket"
+                        />
+                        <USelect
+                            v-model="selectedType"
+                            :items="themeTypeOptions"
+                            class="w-44"
+                            aria-label="Filter type"
+                        />
+                    </template>
 
                     <UButton
                         icon="i-lucide-plus"

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\RouteTesterController;
 use App\Http\Controllers\ArticleGeneratorController;
 use App\Http\Controllers\BeaverBuilderLayoutController;
 use App\Http\Controllers\BeaverBuilderTemplateCategoryController;
@@ -11,6 +10,7 @@ use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectChangelogController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RequestLogController;
+use App\Http\Controllers\RouteTesterController;
 use App\Http\Controllers\ServerController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\UpdateController;
@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/post', 'Post')->name('post');
     Route::inertia('admin/posts', 'Posts')->name('posts');
     Route::get('admin/projects', [ProjectController::class, 'index'])->name('projects');
+    Route::get('admin/themes', [ProjectController::class, 'themes'])->name('themes');
     Route::inertia('admin/users', 'Users')->name('users');
     Route::inertia('admin/categories', 'Categories')->name('categories');
     Route::inertia('admin/tags', 'Tags')->name('tags');
@@ -70,4 +71,4 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
     Route::post('article-generator-by-agent', [ArticleGeneratorController::class, 'generate_by_agent']);
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';

@@ -17,6 +17,7 @@ import {
     dashboard,
     posts,
     projects,
+    themes,
     users as usersRoute,
     categories,
     tags,
@@ -60,6 +61,11 @@ const mainNavItems: NavItem[] = [
         title: 'Projects',
         href: projects(),
         icon: FolderKanban,
+    },
+    {
+        title: 'Themes',
+        href: themes(),
+        icon: BookMarked,
     },
     {
         title: 'Users',

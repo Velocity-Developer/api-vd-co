@@ -106,6 +106,25 @@ test('authenticated users can view projects from the controller', function () {
             ->where('projects.meta.total', 2));
 });
 
+test('themes page only shows WordPress themes and child themes', function () {
+    $user = User::factory()->create();
+    $theme = Project::factory()->create(['type' => 'wp_theme']);
+    $childTheme = Project::factory()->create(['type' => 'wp_theme_child']);
+    Project::factory()->create(['type' => 'wp_plugin']);
+    Project::factory()->create(['type' => 'project_client']);
+
+    $this->actingAs($user)
+        ->get(route('themes'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Projects')
+            ->where('pageTitle', 'Themes')
+            ->has('projects.data', 2)
+            ->where('projects.data.0.id', $childTheme->id)
+            ->where('projects.data.1.id', $theme->id)
+            ->where('projects.meta.total', 2));
+});
+
 test('wordpress plugin project boolean field is exposed as a real boolean', function () {
     $user = User::factory()->create();
     $pluginProject = Project::factory()->create([

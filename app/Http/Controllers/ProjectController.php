@@ -19,16 +19,33 @@ class ProjectController extends Controller
     /**
      * Display the projects admin page.
      */
-    public function index(): InertiaResponse
+    public function index(Request $request): InertiaResponse
+    {
+        return $this->renderIndex('Projects', null, $request);
+    }
+
+    public function themes(Request $request): InertiaResponse
+    {
+        return $this->renderIndex('Projects', ['wp_theme', 'wp_theme_child'], $request);
+    }
+
+    /**
+     * @param  array<int, string>|null  $types
+     */
+    private function renderIndex(string $page, ?array $types = null, ?Request $request = null): InertiaResponse
     {
         $projects = ProjectResource::collection(
             Project::query()
+                ->when($types, fn ($query) => $query->whereIn('type', $types))
+                ->when($request?->filled('paket'), fn ($query) => $query->where('paket', $request->string('paket')))
+                ->when($request?->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
                 ->with('parent:id,name')
                 ->latest('id')
                 ->paginate(),
         );
 
-        return Inertia::render('Projects', [
+        return Inertia::render($page, [
+            'pageTitle' => $types ? 'Themes' : 'Projects',
             'projects' => $projects,
             'parentProjects' => Project::query()
                 ->orderBy('name')
