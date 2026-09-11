@@ -222,6 +222,7 @@ class UpdateController extends Controller
             }
 
             $this->backupAndReplaceApplication($contentDir, base_path(), $backupDir.'/app');
+            $this->copyPublicToPublicHtml($contentDir.'/public', dirname(base_path()).'/public_html');
 
             try {
                 Artisan::call('up');
@@ -405,6 +406,15 @@ class UpdateController extends Controller
 
             File::move($file->getPathname(), $targetPath);
         }
+    }
+
+    private function copyPublicToPublicHtml(string $source, string $dest): void
+    {
+        if (! File::exists($source)) {
+            return;
+        }
+
+        $this->copyDirectoryContents($source, $dest, ['index.php']);
     }
 
     private function copyDirectoryContents(string $source, string $dest, array $excludeBasenames): void
