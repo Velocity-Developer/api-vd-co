@@ -21,6 +21,7 @@ import {
     users as usersRoute,
     categories,
     tags,
+    media,
     licenses,
     servers,
     websites,
@@ -43,6 +44,7 @@ import {
     ScrollText,
     RefreshCw,
     BookMarked,
+    Images,
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -81,6 +83,11 @@ const mainNavItems: NavItem[] = [
         title: 'Tags',
         href: tags(),
         icon: Tag,
+    },
+    {
+        title: 'Media',
+        href: media(),
+        icon: Images,
     },
     {
         title: 'Licenses',

@@ -6,6 +6,7 @@ use App\Http\Controllers\BeaverBuilderTemplateCategoryController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectChangelogController;
 use App\Http\Controllers\ProjectController;
@@ -36,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/licenses', 'Licenses')->name('licenses');
     Route::inertia('admin/websites', 'Websites')->name('websites');
     Route::inertia('admin/servers', 'Servers')->name('servers');
+    Route::inertia('admin/media', 'Media')->name('media');
     Route::inertia('admin/beaver-builder-layouts', 'BeaverBuilderLayouts')->name('beaver-builder-layouts');
     Route::get('admin/system/update', [UpdateController::class, 'page'])->name('system.update');
     Route::get('admin/system/check-updates', [UpdateController::class, 'checkUpdates'])->name('system.check-updates');
@@ -51,6 +53,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth'])->prefix('ajax')->group(function () {
     Route::get('posts/recommended-images', [PostController::class, 'recommendedImages']);
     Route::post('posts/recommended-image', [PostController::class, 'recommendedImage']);
+    Route::get('media', [MediaController::class, 'index']);
+    Route::post('media', [MediaController::class, 'store']);
+    Route::patch('media/{media}', [MediaController::class, 'update']);
+    Route::delete('media/{media}', [MediaController::class, 'destroy']);
     Route::post('projects/{project}/sync-github-release', [ProjectController::class, 'syncGithubRelease']);
 
     Route::apiResources([
