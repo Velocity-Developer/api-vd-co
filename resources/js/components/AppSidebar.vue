@@ -24,6 +24,9 @@ import {
     media,
     mediaCategories,
     mediaTags,
+    dummyProducts,
+    dummyProductBrands,
+    dummyProductCategories,
     licenses,
     servers,
     websites,
@@ -49,6 +52,8 @@ import {
     Images,
     FolderOpen,
     Tags,
+    Package,
+    BadgeCheck,
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -102,6 +107,23 @@ const mainNavItems: NavItem[] = [
                 title: 'Tags',
                 href: mediaTags(),
                 icon: Tags,
+            },
+        ],
+    },
+    {
+        title: 'Dummy Products',
+        href: dummyProducts(),
+        icon: Package,
+        items: [
+            {
+                title: 'Brands',
+                href: dummyProductBrands(),
+                icon: BadgeCheck,
+            },
+            {
+                title: 'Categories',
+                href: dummyProductCategories(),
+                icon: Folder,
             },
         ],
     },

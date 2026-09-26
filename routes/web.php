@@ -5,6 +5,9 @@ use App\Http\Controllers\BeaverBuilderLayoutController;
 use App\Http\Controllers\BeaverBuilderTemplateCategoryController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DummyProductBrandController;
+use App\Http\Controllers\DummyProductCategoryController;
+use App\Http\Controllers\DummyProductController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MediaCategoryController;
 use App\Http\Controllers\MediaController;
@@ -42,6 +45,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/media', 'Media')->name('media');
     Route::inertia('admin/media-categories', 'MediaCategories')->name('media-categories');
     Route::inertia('admin/media-tags', 'MediaTags')->name('media-tags');
+    Route::inertia('admin/dummy-products', 'DummyProducts')->name('dummy-products');
+    Route::inertia('admin/dummy-product-brands', 'DummyProductBrands')->name('dummy-product-brands');
+    Route::inertia('admin/dummy-product-categories', 'DummyProductCategories')->name('dummy-product-categories');
     Route::inertia('admin/beaver-builder-layouts', 'BeaverBuilderLayouts')->name('beaver-builder-layouts');
     Route::get('admin/system/update', [UpdateController::class, 'page'])->name('system.update');
     Route::get('admin/system/check-updates', [UpdateController::class, 'checkUpdates'])->name('system.check-updates');
@@ -72,6 +78,9 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
         'tags' => TagController::class,
         'media-categories' => MediaCategoryController::class,
         'media-tags' => MediaTagController::class,
+        'dummy-products' => DummyProductController::class,
+        'dummy-product-brands' => DummyProductBrandController::class,
+        'dummy-product-categories' => DummyProductCategoryController::class,
         'licenses' => LicenseController::class,
         'websites' => WebsiteController::class,
         'servers' => ServerController::class,
