@@ -22,6 +22,8 @@ import {
     categories,
     tags,
     media,
+    mediaCategories,
+    mediaTags,
     licenses,
     servers,
     websites,
@@ -45,6 +47,8 @@ import {
     RefreshCw,
     BookMarked,
     Images,
+    FolderOpen,
+    Tags,
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -88,6 +92,18 @@ const mainNavItems: NavItem[] = [
         title: 'Media',
         href: media(),
         icon: Images,
+        items: [
+            {
+                title: 'Categories',
+                href: mediaCategories(),
+                icon: FolderOpen,
+            },
+            {
+                title: 'Tags',
+                href: mediaTags(),
+                icon: Tags,
+            },
+        ],
     },
     {
         title: 'Licenses',

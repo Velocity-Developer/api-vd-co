@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Media;
+use App\Models\MediaCategory;
 use App\Models\MediaTag;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -242,4 +243,66 @@ test('users can update and clear the media title without touching other fields',
     expect($media->fresh())
         ->title->toBeNull()
         ->caption->toBe('Caption tetap');
+});
+
+test('users can assign and clear media categories', function () {
+    $this->actingAs(User::factory()->create());
+    $media = Media::factory()->create(['caption' => 'Tetap']);
+    $categories = MediaCategory::factory()->count(2)->create();
+    $media->tags()->attach(MediaTag::factory()->create(['name' => 'Promo', 'slug' => 'promo']));
+
+    $this->patch("/ajax/media/{$media->id}", ['category_ids' => $categories->pluck('id')->all()])
+        ->assertOk()
+        ->assertJsonCount(2, 'data.categories')
+        ->assertJsonCount(1, 'data.tags')
+        ->assertJsonPath('data.caption', 'Tetap');
+
+    $this->patch("/ajax/media/{$media->id}", ['category_ids' => [$categories->last()->id]])
+        ->assertOk()
+        ->assertJsonCount(1, 'data.categories')
+        ->assertJsonPath('data.categories.0.id', $categories->last()->id);
+
+    $this->patch("/ajax/media/{$media->id}", ['category_ids' => []])
+        ->assertOk()
+        ->assertJsonCount(0, 'data.categories');
+
+    expect(MediaCategory::count())->toBe(2);
+});
+
+test('media categories must exist', function () {
+    $this->actingAs(User::factory()->create());
+    $media = Media::factory()->create();
+
+    $this->patch("/ajax/media/{$media->id}", ['category_ids' => [999]])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['category_ids.0']);
+
+    expect($media->categories()->count())->toBe(0);
+});
+
+test('media index can be filtered by category including subcategories or by having no category', function () {
+    $this->actingAs(User::factory()->create());
+    $produk = MediaCategory::factory()->create(['slug' => 'produk']);
+    $banner = MediaCategory::factory()->create(['slug' => 'banner', 'parent_id' => $produk->id]);
+    $lain = MediaCategory::factory()->create(['slug' => 'lain']);
+
+    $inProduk = Media::factory()->create(['original_name' => 'produk.jpg']);
+    $inBanner = Media::factory()->create(['original_name' => 'banner.jpg']);
+    $inLain = Media::factory()->create(['original_name' => 'lain.jpg']);
+    Media::factory()->create(['original_name' => 'tanpa-kategori.jpg']);
+
+    $inProduk->categories()->attach($produk);
+    $inBanner->categories()->attach([$banner->id, $produk->id]);
+    $inLain->categories()->attach($lain);
+
+    $names = fn (string $query): array => collect($this->getJson("/ajax/media?{$query}")->assertOk()->json('data'))
+        ->pluck('original_name')->sort()->values()->all();
+
+    expect($names("category={$produk->id}"))->toBe(['banner.jpg', 'produk.jpg'])
+        ->and($names("category={$banner->id}"))->toBe(['banner.jpg'])
+        ->and($names('category=none'))->toBe(['tanpa-kategori.jpg'])
+        ->and($names('category=999'))->toBe([])
+        ->and($names("category={$produk->id}&search=banner"))->toBe(['banner.jpg']);
+
+    $this->getJson('/ajax/media?category=abc')->assertSessionHasErrors('category');
 });

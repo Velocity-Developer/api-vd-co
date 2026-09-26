@@ -6,6 +6,7 @@ use App\Http\Requests\StoreMediaRequest;
 use App\Http\Requests\UpdateMediaRequest;
 use App\Http\Resources\MediaResource;
 use App\Models\Media;
+use App\Models\MediaCategory;
 use App\Models\MediaTag;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,7 @@ class MediaController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'type' => ['nullable', Rule::in(['image', 'video', 'document'])],
+            'category' => ['nullable', 'string', 'regex:/^(none|\d+)$/'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -52,6 +54,18 @@ class MediaController extends Controller
                     }
 
                     $query->where('mime_type', 'like', "{$type}/%");
+                })
+                ->when($validated['category'] ?? null, function (Builder $query, string $category): void {
+                    if ($category === 'none') {
+                        $query->doesntHave('categories');
+
+                        return;
+                    }
+
+                    $mediaCategory = MediaCategory::find((int) $category);
+                    $categoryIds = $mediaCategory ? [$mediaCategory->id, ...$mediaCategory->descendantIds()] : [];
+
+                    $query->whereHas('categories', fn (Builder $query) => $query->whereKey($categoryIds));
                 })
                 ->latest()
                 ->latest('id')
@@ -88,6 +102,10 @@ class MediaController extends Controller
 
         if (array_key_exists('tags', $validated)) {
             $media->tags()->sync($this->tagIds($validated['tags'] ?? []));
+        }
+
+        if (array_key_exists('category_ids', $validated)) {
+            $media->categories()->sync($validated['category_ids'] ?? []);
         }
 
         return MediaResource::make($media->load(['creator:id,name', 'categories:id,name,slug', 'tags:id,name,slug']));

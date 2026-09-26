@@ -4,7 +4,10 @@ import { useDebounceFn } from '@vueuse/core';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { media as mediaRoute } from '@/routes';
+import {
+    media as mediaRoute,
+    mediaCategories as mediaCategoriesRoute,
+} from '@/routes';
 
 type MediaTerm = {
     id: number;
@@ -52,7 +55,16 @@ type MediaResponse = {
     meta: PaginationMeta;
 };
 
-type EditableField = 'title' | 'caption' | 'tags';
+type EditableField = 'title' | 'caption' | 'categories' | 'tags';
+
+type CategoryOption = {
+    label: string;
+    value: number;
+};
+
+type MediaCategoryItem = MediaTerm & {
+    parent_id: number | null;
+};
 
 type ValidationResponse = {
     message?: string;
@@ -81,6 +93,7 @@ const mediaData = ref<MediaItem[]>([]);
 const meta = ref<PaginationMeta | null>(null);
 const search = ref('');
 const selectedType = ref<MediaType>('all');
+const selectedCategory = ref('all');
 const currentPage = ref(1);
 const isLoading = ref(true);
 const errorMessage = ref<string | null>(null);
@@ -96,6 +109,9 @@ const isDeleting = ref(false);
 const deleteMessage = ref<string | null>(null);
 const editingField = ref<EditableField | null>(null);
 const fieldDraft = ref('');
+const categoryDraft = ref<number[]>([]);
+const categoryOptions = ref<CategoryOption[]>([]);
+const isLoadingCategories = ref(false);
 const isSavingField = ref(false);
 const fieldMessage = ref<string | null>(null);
 
@@ -105,7 +121,7 @@ const editableFields: {
     placeholder: string;
     hint?: string;
     maxlength?: number;
-    multiline: boolean;
+    input: 'text' | 'textarea' | 'categories';
 }[] = [
     {
         key: 'title',
@@ -113,21 +129,27 @@ const editableFields: {
         placeholder: 'Tulis judul...',
         hint: 'Kosongkan untuk memakai nama file.',
         maxlength: 255,
-        multiline: false,
+        input: 'text',
     },
     {
         key: 'caption',
         label: 'Caption',
         placeholder: 'Tulis caption...',
         maxlength: 1000,
-        multiline: true,
+        input: 'textarea',
+    },
+    {
+        key: 'categories',
+        label: 'Kategori',
+        placeholder: 'Pilih kategori...',
+        input: 'categories',
     },
     {
         key: 'tags',
         label: 'Tag',
         placeholder: 'promo, banner, september',
         hint: 'Pisahkan dengan koma.',
-        multiline: true,
+        input: 'textarea',
     },
 ];
 
@@ -144,8 +166,20 @@ const paginationSummary = computed(() => {
     return `${meta.value.from}-${meta.value.to} dari ${meta.value.total} file`;
 });
 
+const categoryFilterOptions = computed(() => [
+    { label: 'Semua kategori', value: 'all' },
+    { label: 'Tanpa kategori', value: 'none' },
+    ...categoryOptions.value.map((option) => ({
+        label: option.label,
+        value: String(option.value),
+    })),
+]);
+
 const hasActiveFilter = computed(
-    () => search.value.trim() !== '' || selectedType.value !== 'all',
+    () =>
+        search.value.trim() !== '' ||
+        selectedType.value !== 'all' ||
+        selectedCategory.value !== 'all',
 );
 
 const fetchMedia = async (page = 1): Promise<void> => {
@@ -161,6 +195,10 @@ const fetchMedia = async (page = 1): Promise<void> => {
                     selectedType.value === 'all'
                         ? undefined
                         : selectedType.value,
+                category:
+                    selectedCategory.value === 'all'
+                        ? undefined
+                        : selectedCategory.value,
             },
         });
 
@@ -263,7 +301,51 @@ const openPreview = (item: MediaItem): void => {
 };
 
 const hasFieldValue = (item: MediaItem, field: EditableField): boolean =>
-    field === 'tags' ? Boolean(item.tags?.length) : Boolean(item[field]);
+    field === 'tags' || field === 'categories'
+        ? Boolean(item[field]?.length)
+        : Boolean(item[field]);
+
+const fetchCategoryOptions = async (): Promise<void> => {
+    isLoadingCategories.value = true;
+
+    try {
+        const response = await axios.get<{ data: MediaCategoryItem[] }>(
+            '/ajax/media-categories',
+            { params: { all: 1 } },
+        );
+        const byId = new Map(
+            response.data.data.map((category) => [category.id, category]),
+        );
+        const categoryPath = (category: MediaCategoryItem): string => {
+            const names = [category.name];
+            const visited = new Set([category.id]);
+            let parent = byId.get(category.parent_id ?? 0);
+
+            while (parent && !visited.has(parent.id)) {
+                names.unshift(parent.name);
+                visited.add(parent.id);
+                parent = byId.get(parent.parent_id ?? 0);
+            }
+
+            return names.join(' › ');
+        };
+
+        categoryOptions.value = response.data.data
+            .map((category) => ({
+                label: categoryPath(category),
+                value: category.id,
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'id'));
+    } catch {
+        if (editingField.value === 'categories') {
+            fieldMessage.value = 'Daftar kategori gagal dimuat.';
+        } else {
+            toast.error('Daftar kategori gagal dimuat.');
+        }
+    } finally {
+        isLoadingCategories.value = false;
+    }
+};
 
 const parseTags = (value: string): string[] => {
     const tags = value
@@ -282,17 +364,28 @@ const parseTags = (value: string): string[] => {
 const startFieldEdit = (field: EditableField): void => {
     const item = selectedMedia.value;
 
+    fieldMessage.value = null;
+    editingField.value = field;
+
+    if (field === 'categories') {
+        categoryDraft.value = (item?.categories ?? []).map(
+            (category) => category.id,
+        );
+        void fetchCategoryOptions();
+
+        return;
+    }
+
     fieldDraft.value =
         field === 'tags'
             ? (item?.tags ?? []).map((tag) => tag.name).join(', ')
             : (item?.[field] ?? '');
-    fieldMessage.value = null;
-    editingField.value = field;
 };
 
 const cancelFieldEdit = (): void => {
     editingField.value = null;
     fieldDraft.value = '';
+    categoryDraft.value = [];
     fieldMessage.value = null;
 };
 
@@ -307,9 +400,11 @@ const saveField = async (): Promise<void> => {
         editableFields.find((editable) => editable.key === field)?.label ??
         'Data';
     const payload =
-        field === 'tags'
-            ? { tags: parseTags(fieldDraft.value) }
-            : { [field]: fieldDraft.value.trim() || null };
+        field === 'categories'
+            ? { category_ids: categoryDraft.value }
+            : field === 'tags'
+              ? { tags: parseTags(fieldDraft.value) }
+              : { [field]: fieldDraft.value.trim() || null };
 
     isSavingField.value = true;
     fieldMessage.value = null;
@@ -496,6 +591,7 @@ const deleteMedia = async (): Promise<void> => {
 const resetFilters = (): void => {
     search.value = '';
     selectedType.value = 'all';
+    selectedCategory.value = 'all';
 };
 
 watch(currentPage, (page) => {
@@ -508,7 +604,7 @@ watch(search, () => {
     void debouncedSearch();
 });
 
-watch(selectedType, refetchFromFirstPage);
+watch([selectedType, selectedCategory], refetchFromFirstPage);
 
 watch(uploadFiles, () => {
     uploadMessage.value = null;
@@ -516,6 +612,7 @@ watch(uploadFiles, () => {
 
 onMounted(() => {
     void fetchMedia();
+    void fetchCategoryOptions();
 });
 </script>
 
@@ -546,6 +643,19 @@ onMounted(() => {
                     :items="typeOptions"
                     class="w-36"
                     aria-label="Filter tipe media"
+                />
+
+                <USelect
+                    v-model="selectedCategory"
+                    :items="categoryFilterOptions"
+                    :loading="isLoadingCategories"
+                    :content="{ align: 'end' }"
+                    :ui="{
+                        content:
+                            'w-auto min-w-(--reka-select-trigger-width) max-w-80',
+                    }"
+                    class="w-48"
+                    aria-label="Filter kategori media"
                 />
 
                 <UButton
@@ -609,7 +719,7 @@ onMounted(() => {
             <p class="text-sm text-muted">
                 {{
                     hasActiveFilter
-                        ? 'Coba ubah kata kunci atau filter tipe.'
+                        ? 'Coba ubah kata kunci, filter tipe, atau kategori.'
                         : 'File yang sudah diupload akan tampil di sini.'
                 }}
             </p>
@@ -781,18 +891,6 @@ onMounted(() => {
                                 {{ selectedMedia.alt_text }}
                             </dd>
                         </div>
-                        <div v-if="selectedMedia.categories?.length">
-                            <dt class="mb-1 text-muted">Kategori</dt>
-                            <dd class="flex flex-wrap gap-1">
-                                <UBadge
-                                    v-for="category in selectedMedia.categories"
-                                    :key="category.id"
-                                    color="primary"
-                                    variant="subtle"
-                                    :label="category.name"
-                                />
-                            </dd>
-                        </div>
                         <div v-for="field in editableFields" :key="field.key">
                             <dt
                                 class="flex items-center justify-between gap-2 text-muted"
@@ -822,8 +920,42 @@ onMounted(() => {
                                 v-if="editingField === field.key"
                                 class="mt-1 space-y-2"
                             >
+                                <template v-if="field.input === 'categories'">
+                                    <USelectMenu
+                                        v-model="categoryDraft"
+                                        :items="categoryOptions"
+                                        value-key="value"
+                                        multiple
+                                        :loading="isLoadingCategories"
+                                        :disabled="isSavingField"
+                                        :placeholder="field.placeholder"
+                                        :search-input="{
+                                            placeholder: 'Cari kategori...',
+                                        }"
+                                        :color="
+                                            fieldMessage ? 'error' : undefined
+                                        "
+                                        class="w-full"
+                                    />
+                                    <p
+                                        v-if="
+                                            !isLoadingCategories &&
+                                            categoryOptions.length === 0 &&
+                                            !fieldMessage
+                                        "
+                                        class="text-xs text-muted"
+                                    >
+                                        Belum ada kategori media.
+                                        <ULink
+                                            :to="mediaCategoriesRoute().url"
+                                            class="text-primary"
+                                        >
+                                            Buat di Media Categories
+                                        </ULink>
+                                    </p>
+                                </template>
                                 <UInput
-                                    v-if="!field.multiline"
+                                    v-else-if="field.input === 'text'"
                                     v-model="fieldDraft"
                                     :maxlength="field.maxlength"
                                     autofocus
@@ -881,7 +1013,8 @@ onMounted(() => {
                             </dd>
                             <dd
                                 v-else-if="
-                                    field.key !== 'tags' &&
+                                    (field.key === 'title' ||
+                                        field.key === 'caption') &&
                                     selectedMedia[field.key]
                                 "
                                 class="whitespace-pre-line text-highlighted"
@@ -890,17 +1023,22 @@ onMounted(() => {
                             </dd>
                             <dd
                                 v-else-if="
-                                    field.key === 'tags' &&
-                                    selectedMedia.tags?.length
+                                    (field.key === 'categories' ||
+                                        field.key === 'tags') &&
+                                    selectedMedia[field.key]?.length
                                 "
                                 class="flex flex-wrap gap-1"
                             >
                                 <UBadge
-                                    v-for="tag in selectedMedia.tags"
-                                    :key="tag.id"
-                                    color="neutral"
+                                    v-for="term in selectedMedia[field.key]"
+                                    :key="term.id"
+                                    :color="
+                                        field.key === 'categories'
+                                            ? 'primary'
+                                            : 'neutral'
+                                    "
                                     variant="subtle"
-                                    :label="tag.name"
+                                    :label="term.name"
                                 />
                             </dd>
                             <dd v-else class="text-dimmed">

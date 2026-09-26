@@ -30,4 +30,27 @@ class MediaCategory extends Model
     {
         return $this->hasMany(self::class, 'parent_id');
     }
+
+    /**
+     * Get the ids of every category below this one.
+     *
+     * @return list<int>
+     */
+    public function descendantIds(): array
+    {
+        $descendantIds = [];
+        $parentIds = [$this->id];
+
+        while ($parentIds !== []) {
+            $parentIds = static::query()
+                ->whereIn('parent_id', $parentIds)
+                ->whereNotIn('id', $descendantIds)
+                ->pluck('id')
+                ->all();
+
+            array_push($descendantIds, ...$parentIds);
+        }
+
+        return $descendantIds;
+    }
 }

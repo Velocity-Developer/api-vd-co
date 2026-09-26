@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\RespondsWithJsonValidationErrors;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class UpdateMediaRequest extends FormRequest
@@ -33,6 +34,8 @@ class UpdateMediaRequest extends FormRequest
             'caption' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'tags' => ['sometimes', 'nullable', 'array', 'max:'.self::MAX_TAGS],
             'tags.*' => ['required', 'string', 'max:50'],
+            'category_ids' => ['sometimes', 'nullable', 'array'],
+            'category_ids.*' => ['integer', 'distinct', Rule::exists('media_categories', 'id')],
         ];
     }
 
@@ -45,7 +48,7 @@ class UpdateMediaRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if (! $this->hasAny(['title', 'caption', 'tags'])) {
+                if (! $this->hasAny(['title', 'caption', 'tags', 'category_ids'])) {
                     $validator->errors()->add('media', 'Tidak ada data yang diubah.');
                 }
             },
@@ -64,6 +67,7 @@ class UpdateMediaRequest extends FormRequest
             'caption.max' => 'Caption maksimal 1000 karakter.',
             'tags.max' => 'Maksimal '.self::MAX_TAGS.' tag.',
             'tags.*.max' => 'Setiap tag maksimal 50 karakter.',
+            'category_ids.*.exists' => 'Kategori media tidak ditemukan.',
         ];
     }
 }

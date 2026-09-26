@@ -6,7 +6,9 @@ use App\Http\Controllers\BeaverBuilderTemplateCategoryController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\MediaCategoryController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MediaTagController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\ProjectChangelogController;
 use App\Http\Controllers\ProjectController;
@@ -38,6 +40,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('admin/websites', 'Websites')->name('websites');
     Route::inertia('admin/servers', 'Servers')->name('servers');
     Route::inertia('admin/media', 'Media')->name('media');
+    Route::inertia('admin/media-categories', 'MediaCategories')->name('media-categories');
+    Route::inertia('admin/media-tags', 'MediaTags')->name('media-tags');
     Route::inertia('admin/beaver-builder-layouts', 'BeaverBuilderLayouts')->name('beaver-builder-layouts');
     Route::get('admin/system/update', [UpdateController::class, 'page'])->name('system.update');
     Route::get('admin/system/check-updates', [UpdateController::class, 'checkUpdates'])->name('system.check-updates');
@@ -66,6 +70,8 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
         'users' => UserController::class,
         'categories' => CategoryController::class,
         'tags' => TagController::class,
+        'media-categories' => MediaCategoryController::class,
+        'media-tags' => MediaTagController::class,
         'licenses' => LicenseController::class,
         'websites' => WebsiteController::class,
         'servers' => ServerController::class,
