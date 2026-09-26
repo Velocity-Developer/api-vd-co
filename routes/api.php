@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AiProviderController as ApiV1AiProviderController;
 use App\Http\Controllers\Api\V1\BeaverBuilderController as ApiV1BeaverBuilderController;
 use App\Http\Controllers\Api\V1\LicenseController as ApiV1LicenseController;
+use App\Http\Controllers\Api\V1\MediaController as ApiV1MediaController;
 use App\Http\Controllers\Api\V1\NewsController as ApiV1NewsController;
 use App\Http\Controllers\Api\V1\ProjectController as ApiV1ProjectController;
 use App\Http\Controllers\Api\V1\TgmPluginController as ApiV1TgmPluginController;
@@ -58,6 +59,7 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/tgm-plugins', ApiV1TgmPluginController::class);
     Route::get('/themes', [ApiV1ProjectController::class, 'themes']);
     Route::get('/plugins', [ApiV1ProjectController::class, 'plugins']);
+    Route::get('/media', [ApiV1MediaController::class, 'index']);
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {

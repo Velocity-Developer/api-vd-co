@@ -37,24 +37,8 @@ class MediaController extends Controller
         return MediaResource::collection(
             Media::query()
                 ->with(['creator:id,name', 'categories:id,name,slug', 'tags:id,name,slug'])
-                ->when($search !== '', function (Builder $query) use ($search): void {
-                    $query->where(function (Builder $query) use ($search): void {
-                        $query->where('original_name', 'like', "%{$search}%")
-                            ->orWhere('file_name', 'like', "%{$search}%")
-                            ->orWhere('title', 'like', "%{$search}%")
-                            ->orWhere('alt_text', 'like', "%{$search}%");
-                    });
-                })
-                ->when($validated['type'] ?? null, function (Builder $query, string $type): void {
-                    if ($type === 'document') {
-                        $query->where('mime_type', 'not like', 'image/%')
-                            ->where('mime_type', 'not like', 'video/%');
-
-                        return;
-                    }
-
-                    $query->where('mime_type', 'like', "{$type}/%");
-                })
+                ->when($search !== '', fn (Builder $query) => $query->search($search))
+                ->when($validated['type'] ?? null, fn (Builder $query, string $type) => $query->ofType($type))
                 ->when($validated['category'] ?? null, function (Builder $query, string $category): void {
                     if ($category === 'none') {
                         $query->doesntHave('categories');
@@ -62,10 +46,7 @@ class MediaController extends Controller
                         return;
                     }
 
-                    $mediaCategory = MediaCategory::find((int) $category);
-                    $categoryIds = $mediaCategory ? [$mediaCategory->id, ...$mediaCategory->descendantIds()] : [];
-
-                    $query->whereHas('categories', fn (Builder $query) => $query->whereKey($categoryIds));
+                    $query->inCategory(MediaCategory::find((int) $category));
                 })
                 ->latest()
                 ->latest('id')

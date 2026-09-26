@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\MediaFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -65,5 +67,55 @@ class Media extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(MediaTag::class, 'media_media_tag')->withTimestamps();
+    }
+
+    /**
+     * Match the file name, title or alt text.
+     */
+    #[Scope]
+    protected function search(Builder $query, string $search): void
+    {
+        $query->where(function (Builder $query) use ($search): void {
+            $query->where('original_name', 'like', "%{$search}%")
+                ->orWhere('file_name', 'like', "%{$search}%")
+                ->orWhere('title', 'like', "%{$search}%")
+                ->orWhere('alt_text', 'like', "%{$search}%");
+        });
+    }
+
+    /**
+     * Limit to images, videos or documents (anything that is neither).
+     */
+    #[Scope]
+    protected function ofType(Builder $query, string $type): void
+    {
+        if ($type === 'document') {
+            $query->where('mime_type', 'not like', 'image/%')
+                ->where('mime_type', 'not like', 'video/%');
+
+            return;
+        }
+
+        $query->where('mime_type', 'like', "{$type}/%");
+    }
+
+    /**
+     * Limit to media in the category or any of its subcategories; no category matches nothing.
+     */
+    #[Scope]
+    protected function inCategory(Builder $query, ?MediaCategory $category): void
+    {
+        $categoryIds = $category ? [$category->id, ...$category->descendantIds()] : [];
+
+        $query->whereHas('categories', fn (Builder $query) => $query->whereKey($categoryIds));
+    }
+
+    /**
+     * Limit to media with the tag slug.
+     */
+    #[Scope]
+    protected function withTag(Builder $query, string $slug): void
+    {
+        $query->whereHas('tags', fn (Builder $query) => $query->where('slug', $slug));
     }
 }
