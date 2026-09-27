@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import axios, { AxiosError } from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     media as mediaRoute,
@@ -55,7 +55,12 @@ type MediaResponse = {
     meta: PaginationMeta;
 };
 
-type EditableField = 'title' | 'caption' | 'categories' | 'tags';
+type DetailsDraft = {
+    title: string;
+    caption: string;
+    categoryIds: number[];
+    tags: string;
+};
 
 type CategoryOption = {
     label: string;
@@ -107,51 +112,18 @@ const uploadMessage = ref<string | null>(null);
 const isDeleteOpen = ref(false);
 const isDeleting = ref(false);
 const deleteMessage = ref<string | null>(null);
-const editingField = ref<EditableField | null>(null);
-const fieldDraft = ref('');
-const categoryDraft = ref<number[]>([]);
 const categoryOptions = ref<CategoryOption[]>([]);
 const isLoadingCategories = ref(false);
-const isSavingField = ref(false);
-const fieldMessage = ref<string | null>(null);
-
-const editableFields: {
-    key: EditableField;
-    label: string;
-    placeholder: string;
-    hint?: string;
-    maxlength?: number;
-    input: 'text' | 'textarea' | 'categories';
-}[] = [
-    {
-        key: 'title',
-        label: 'Judul',
-        placeholder: 'Tulis judul...',
-        hint: 'Kosongkan untuk memakai nama file.',
-        maxlength: 255,
-        input: 'text',
-    },
-    {
-        key: 'caption',
-        label: 'Caption',
-        placeholder: 'Tulis caption...',
-        maxlength: 1000,
-        input: 'textarea',
-    },
-    {
-        key: 'categories',
-        label: 'Kategori',
-        placeholder: 'Pilih kategori...',
-        input: 'categories',
-    },
-    {
-        key: 'tags',
-        label: 'Tag',
-        placeholder: 'promo, banner, september',
-        hint: 'Pisahkan dengan koma.',
-        input: 'textarea',
-    },
-];
+const isEditingDetails = ref(false);
+const isSavingDetails = ref(false);
+const detailsDraft = reactive<DetailsDraft>({
+    title: '',
+    caption: '',
+    categoryIds: [],
+    tags: '',
+});
+const detailsMessage = ref<string | null>(null);
+const detailsErrors = ref<Partial<Record<keyof DetailsDraft, string>>>({});
 
 const maxUploadFiles = 10;
 const maxUploadSizeMb = 20;
@@ -296,14 +268,9 @@ const dimensions = (item: MediaItem): string | null => {
 
 const openPreview = (item: MediaItem): void => {
     selectedMedia.value = item;
-    cancelFieldEdit();
+    cancelDetailsEdit();
     isPreviewOpen.value = true;
 };
-
-const hasFieldValue = (item: MediaItem, field: EditableField): boolean =>
-    field === 'tags' || field === 'categories'
-        ? Boolean(item[field]?.length)
-        : Boolean(item[field]);
 
 const fetchCategoryOptions = async (): Promise<void> => {
     isLoadingCategories.value = true;
@@ -337,8 +304,8 @@ const fetchCategoryOptions = async (): Promise<void> => {
             }))
             .sort((a, b) => a.label.localeCompare(b.label, 'id'));
     } catch {
-        if (editingField.value === 'categories') {
-            fieldMessage.value = 'Daftar kategori gagal dimuat.';
+        if (isEditingDetails.value) {
+            detailsErrors.value.categoryIds = 'Daftar kategori gagal dimuat.';
         } else {
             toast.error('Daftar kategori gagal dimuat.');
         }
@@ -361,58 +328,60 @@ const parseTags = (value: string): string[] => {
     );
 };
 
-const startFieldEdit = (field: EditableField): void => {
+const startDetailsEdit = (): void => {
     const item = selectedMedia.value;
 
-    fieldMessage.value = null;
-    editingField.value = field;
-
-    if (field === 'categories') {
-        categoryDraft.value = (item?.categories ?? []).map(
-            (category) => category.id,
-        );
-        void fetchCategoryOptions();
-
+    if (!item) {
         return;
     }
 
-    fieldDraft.value =
-        field === 'tags'
-            ? (item?.tags ?? []).map((tag) => tag.name).join(', ')
-            : (item?.[field] ?? '');
+    Object.assign(detailsDraft, {
+        title: item.title ?? '',
+        caption: item.caption ?? '',
+        categoryIds: (item.categories ?? []).map((category) => category.id),
+        tags: (item.tags ?? []).map((tag) => tag.name).join(', '),
+    });
+    detailsMessage.value = null;
+    detailsErrors.value = {};
+    isEditingDetails.value = true;
+    void fetchCategoryOptions();
 };
 
-const cancelFieldEdit = (): void => {
-    editingField.value = null;
-    fieldDraft.value = '';
-    categoryDraft.value = [];
-    fieldMessage.value = null;
+const cancelDetailsEdit = (): void => {
+    isEditingDetails.value = false;
+    detailsMessage.value = null;
+    detailsErrors.value = {};
 };
 
-const saveField = async (): Promise<void> => {
-    const field = editingField.value;
+/** Server field names mapped to the draft fields they belong to. */
+const detailsFieldForError = (name: string): keyof DetailsDraft | null => {
+    const field = name.split('.')[0];
 
-    if (!selectedMedia.value || !field) {
+    if (field === 'title' || field === 'caption' || field === 'tags') {
+        return field;
+    }
+
+    return field === 'category_ids' ? 'categoryIds' : null;
+};
+
+const saveDetails = async (): Promise<void> => {
+    if (!selectedMedia.value || isSavingDetails.value) {
         return;
     }
 
-    const label =
-        editableFields.find((editable) => editable.key === field)?.label ??
-        'Data';
-    const payload =
-        field === 'categories'
-            ? { category_ids: categoryDraft.value }
-            : field === 'tags'
-              ? { tags: parseTags(fieldDraft.value) }
-              : { [field]: fieldDraft.value.trim() || null };
-
-    isSavingField.value = true;
-    fieldMessage.value = null;
+    isSavingDetails.value = true;
+    detailsMessage.value = null;
+    detailsErrors.value = {};
 
     try {
         const response = await axios.patch<{ data: MediaItem }>(
             `/ajax/media/${selectedMedia.value.id}`,
-            payload,
+            {
+                title: detailsDraft.title.trim() || null,
+                caption: detailsDraft.caption.trim() || null,
+                category_ids: detailsDraft.categoryIds,
+                tags: parseTags(detailsDraft.tags),
+            },
         );
         const updatedMedia = response.data.data;
 
@@ -420,19 +389,28 @@ const saveField = async (): Promise<void> => {
         mediaData.value = mediaData.value.map((item) =>
             item.id === updatedMedia.id ? updatedMedia : item,
         );
-        cancelFieldEdit();
-        toast.success(`${label} disimpan.`);
+        cancelDetailsEdit();
+        toast.success('Detail media disimpan.');
     } catch (error) {
-        const response =
-            error instanceof AxiosError && error.response?.status === 422
-                ? (error.response.data as ValidationResponse)
-                : null;
+        if (!(error instanceof AxiosError) || error.response?.status !== 422) {
+            detailsMessage.value = 'Detail media gagal disimpan.';
 
-        fieldMessage.value =
-            Object.values(response?.errors ?? {})[0]?.[0] ??
-            `${label} gagal disimpan.`;
+            return;
+        }
+
+        const response = error.response.data as ValidationResponse;
+
+        Object.entries(response.errors ?? {}).forEach(([name, messages]) => {
+            const field = detailsFieldForError(name);
+
+            if (field && !detailsErrors.value[field]) {
+                detailsErrors.value[field] = messages[0];
+            } else if (!field) {
+                detailsMessage.value = messages[0] ?? null;
+            }
+        });
     } finally {
-        isSavingField.value = false;
+        isSavingDetails.value = false;
     }
 };
 
@@ -891,166 +869,187 @@ onMounted(() => {
                                 {{ selectedMedia.alt_text }}
                             </dd>
                         </div>
-                        <div v-for="field in editableFields" :key="field.key">
-                            <dt
-                                class="flex items-center justify-between gap-2 text-muted"
-                            >
-                                {{ field.label }}
-                                <UButton
-                                    v-if="editingField !== field.key"
-                                    :label="
-                                        hasFieldValue(selectedMedia, field.key)
-                                            ? 'Edit'
-                                            : 'Tambah'
-                                    "
-                                    :icon="
-                                        hasFieldValue(selectedMedia, field.key)
-                                            ? 'i-lucide-pencil'
-                                            : 'i-lucide-plus'
-                                    "
-                                    :aria-label="`Edit ${field.label}`"
-                                    color="neutral"
-                                    variant="ghost"
-                                    size="xs"
-                                    :disabled="isSavingField"
-                                    @click="startFieldEdit(field.key)"
-                                />
-                            </dt>
-                            <dd
-                                v-if="editingField === field.key"
-                                class="mt-1 space-y-2"
-                            >
-                                <template v-if="field.input === 'categories'">
-                                    <USelectMenu
-                                        v-model="categoryDraft"
-                                        :items="categoryOptions"
-                                        value-key="value"
-                                        multiple
-                                        :loading="isLoadingCategories"
-                                        :disabled="isSavingField"
-                                        :placeholder="field.placeholder"
-                                        :search-input="{
-                                            placeholder: 'Cari kategori...',
-                                        }"
-                                        :color="
-                                            fieldMessage ? 'error' : undefined
-                                        "
-                                        class="w-full"
+                        <template v-if="!isEditingDetails">
+                            <div>
+                                <dt class="text-muted">Judul</dt>
+                                <dd
+                                    v-if="selectedMedia.title"
+                                    class="text-highlighted"
+                                >
+                                    {{ selectedMedia.title }}
+                                </dd>
+                                <dd v-else class="text-dimmed">
+                                    Belum ada judul
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-muted">Caption</dt>
+                                <dd
+                                    v-if="selectedMedia.caption"
+                                    class="whitespace-pre-line text-highlighted"
+                                >
+                                    {{ selectedMedia.caption }}
+                                </dd>
+                                <dd v-else class="text-dimmed">
+                                    Belum ada caption
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="mb-1 text-muted">Kategori</dt>
+                                <dd
+                                    v-if="selectedMedia.categories?.length"
+                                    class="flex flex-wrap gap-1"
+                                >
+                                    <UBadge
+                                        v-for="category in selectedMedia.categories"
+                                        :key="category.id"
+                                        color="primary"
+                                        variant="subtle"
+                                        :label="category.name"
                                     />
-                                    <p
-                                        v-if="
-                                            !isLoadingCategories &&
-                                            categoryOptions.length === 0 &&
-                                            !fieldMessage
-                                        "
-                                        class="text-xs text-muted"
-                                    >
-                                        Belum ada kategori media.
-                                        <ULink
-                                            :to="mediaCategoriesRoute().url"
-                                            class="text-primary"
-                                        >
-                                            Buat di Media Categories
-                                        </ULink>
-                                    </p>
-                                </template>
-                                <UInput
-                                    v-else-if="field.input === 'text'"
-                                    v-model="fieldDraft"
-                                    :maxlength="field.maxlength"
-                                    autofocus
-                                    :placeholder="field.placeholder"
-                                    :disabled="isSavingField"
-                                    :color="fieldMessage ? 'error' : undefined"
-                                    class="w-full"
-                                    @keydown.enter.prevent="saveField"
-                                    @keydown.esc.stop="cancelFieldEdit"
-                                />
-                                <UTextarea
-                                    v-else
-                                    v-model="fieldDraft"
-                                    :rows="field.key === 'caption' ? 3 : 2"
-                                    :maxlength="field.maxlength"
-                                    autoresize
-                                    autofocus
-                                    :placeholder="field.placeholder"
-                                    :disabled="isSavingField"
-                                    :color="fieldMessage ? 'error' : undefined"
-                                    class="w-full"
-                                    @keydown.ctrl.enter="saveField"
-                                    @keydown.meta.enter="saveField"
-                                    @keydown.esc.stop="cancelFieldEdit"
-                                />
-                                <p
-                                    v-if="fieldMessage"
-                                    class="text-xs text-error"
+                                </dd>
+                                <dd v-else class="text-dimmed">
+                                    Belum ada kategori
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="mb-1 text-muted">Tag</dt>
+                                <dd
+                                    v-if="selectedMedia.tags?.length"
+                                    class="flex flex-wrap gap-1"
                                 >
-                                    {{ fieldMessage }}
-                                </p>
-                                <p
-                                    v-else-if="field.hint"
-                                    class="text-xs text-muted"
-                                >
-                                    {{ field.hint }}
-                                </p>
-                                <div class="flex justify-end gap-2">
-                                    <UButton
-                                        label="Batal"
+                                    <UBadge
+                                        v-for="tag in selectedMedia.tags"
+                                        :key="tag.id"
                                         color="neutral"
-                                        variant="outline"
-                                        size="xs"
-                                        :disabled="isSavingField"
-                                        @click="cancelFieldEdit"
+                                        variant="subtle"
+                                        :label="tag.name"
                                     />
-                                    <UButton
-                                        label="Simpan"
-                                        icon="i-lucide-check"
-                                        size="xs"
-                                        :loading="isSavingField"
-                                        @click="saveField"
-                                    />
-                                </div>
-                            </dd>
-                            <dd
-                                v-else-if="
-                                    (field.key === 'title' ||
-                                        field.key === 'caption') &&
-                                    selectedMedia[field.key]
-                                "
-                                class="whitespace-pre-line text-highlighted"
+                                </dd>
+                                <dd v-else class="text-dimmed">
+                                    Belum ada tag
+                                </dd>
+                            </div>
+                        </template>
+
+                        <form
+                            v-else
+                            id="media-details-form"
+                            class="space-y-4 border-t border-default pt-4"
+                            @submit.prevent="saveDetails"
+                        >
+                            <UAlert
+                                v-if="detailsMessage"
+                                color="error"
+                                variant="soft"
+                                icon="i-lucide-circle-alert"
+                                :description="detailsMessage"
+                            />
+
+                            <UFormField
+                                label="Judul"
+                                help="Kosongkan untuk memakai nama file."
+                                :error="detailsErrors.title"
                             >
-                                {{ selectedMedia[field.key] }}
-                            </dd>
-                            <dd
-                                v-else-if="
-                                    (field.key === 'categories' ||
-                                        field.key === 'tags') &&
-                                    selectedMedia[field.key]?.length
-                                "
-                                class="flex flex-wrap gap-1"
-                            >
-                                <UBadge
-                                    v-for="term in selectedMedia[field.key]"
-                                    :key="term.id"
-                                    :color="
-                                        field.key === 'categories'
-                                            ? 'primary'
-                                            : 'neutral'
-                                    "
-                                    variant="subtle"
-                                    :label="term.name"
+                                <UInput
+                                    v-model="detailsDraft.title"
+                                    :maxlength="255"
+                                    autofocus
+                                    placeholder="Tulis judul..."
+                                    :disabled="isSavingDetails"
+                                    class="w-full"
                                 />
-                            </dd>
-                            <dd v-else class="text-dimmed">
-                                Belum ada {{ field.label.toLowerCase() }}
-                            </dd>
-                        </div>
+                            </UFormField>
+
+                            <UFormField
+                                label="Caption"
+                                :error="detailsErrors.caption"
+                            >
+                                <UTextarea
+                                    v-model="detailsDraft.caption"
+                                    :rows="3"
+                                    :maxlength="1000"
+                                    autoresize
+                                    placeholder="Tulis caption..."
+                                    :disabled="isSavingDetails"
+                                    class="w-full"
+                                />
+                            </UFormField>
+
+                            <UFormField
+                                label="Kategori"
+                                :error="detailsErrors.categoryIds"
+                            >
+                                <USelectMenu
+                                    v-model="detailsDraft.categoryIds"
+                                    :items="categoryOptions"
+                                    value-key="value"
+                                    multiple
+                                    :loading="isLoadingCategories"
+                                    :disabled="isSavingDetails"
+                                    placeholder="Pilih kategori..."
+                                    :search-input="{
+                                        placeholder: 'Cari kategori...',
+                                    }"
+                                    class="w-full"
+                                />
+                                <template
+                                    v-if="
+                                        !isLoadingCategories &&
+                                        categoryOptions.length === 0 &&
+                                        !detailsErrors.categoryIds
+                                    "
+                                    #help
+                                >
+                                    Belum ada kategori media.
+                                    <ULink
+                                        :to="mediaCategoriesRoute().url"
+                                        class="text-primary"
+                                    >
+                                        Buat di Media Categories
+                                    </ULink>
+                                </template>
+                            </UFormField>
+
+                            <UFormField
+                                label="Tag"
+                                help="Pisahkan dengan koma."
+                                :error="detailsErrors.tags"
+                            >
+                                <UTextarea
+                                    v-model="detailsDraft.tags"
+                                    :rows="2"
+                                    autoresize
+                                    placeholder="promo, banner, september"
+                                    :disabled="isSavingDetails"
+                                    class="w-full"
+                                />
+                            </UFormField>
+                        </form>
                     </dl>
                 </div>
             </template>
 
             <template #footer>
-                <template v-if="selectedMedia">
+                <template v-if="selectedMedia && isEditingDetails">
+                    <UButton
+                        label="Batal"
+                        color="neutral"
+                        variant="outline"
+                        :disabled="isSavingDetails"
+                        @click="cancelDetailsEdit"
+                    />
+
+                    <UButton
+                        type="submit"
+                        form="media-details-form"
+                        label="Simpan"
+                        icon="i-lucide-save"
+                        :loading="isSavingDetails"
+                    />
+                </template>
+
+                <template v-else-if="selectedMedia">
                     <UButton
                         label="Hapus"
                         icon="i-lucide-trash"
@@ -1071,9 +1070,17 @@ onMounted(() => {
                     <UButton
                         label="Buka file"
                         icon="i-lucide-external-link"
+                        color="neutral"
+                        variant="outline"
                         :href="selectedMedia.url"
                         target="_blank"
                         rel="noopener"
+                    />
+
+                    <UButton
+                        label="Edit"
+                        icon="i-lucide-pencil"
+                        @click="startDetailsEdit"
                     />
                 </template>
             </template>
