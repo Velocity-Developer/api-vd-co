@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
+import type { TableColumn, TableRow } from '@nuxt/ui';
 import { useDebounceFn } from '@vueuse/core';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
@@ -99,6 +100,33 @@ const meta = ref<PaginationMeta | null>(null);
 const search = ref('');
 const selectedType = ref<MediaType>('all');
 const selectedCategory = ref('all');
+
+type ViewMode = 'grid' | 'list';
+
+const viewModeStorageKey = 'admin-media-view';
+
+/** Browser storage can be blocked (private mode, disabled site data); fall back to grid. */
+const readViewMode = (): ViewMode => {
+    try {
+        return window.localStorage.getItem(viewModeStorageKey) === 'list'
+            ? 'list'
+            : 'grid';
+    } catch {
+        return 'grid';
+    }
+};
+
+const viewMode = ref<ViewMode>(readViewMode());
+
+const listColumns: TableColumn<MediaItem>[] = [
+    { accessorKey: 'original_name', header: 'Nama' },
+    { accessorKey: 'mime_type', header: 'Tipe' },
+    { accessorKey: 'size', header: 'Ukuran' },
+    { accessorKey: 'metadata', header: 'Dimensi' },
+    { accessorKey: 'categories', header: 'Kategori & tag' },
+    { accessorKey: 'created_at', header: 'Diupload' },
+    { id: 'actions' },
+];
 const currentPage = ref(1);
 const isLoading = ref(true);
 const errorMessage = ref<string | null>(null);
@@ -588,6 +616,18 @@ watch(uploadFiles, () => {
     uploadMessage.value = null;
 });
 
+const selectListRow = (_event: Event, row: TableRow<MediaItem>): void => {
+    openPreview(row.original);
+};
+
+watch(viewMode, (mode) => {
+    try {
+        window.localStorage.setItem(viewModeStorageKey, mode);
+    } catch {
+        // Not remembering the choice is fine.
+    }
+});
+
 onMounted(() => {
     void fetchMedia();
     void fetchCategoryOptions();
@@ -642,6 +682,25 @@ onMounted(() => {
                     @click="openUploadModal"
                 />
 
+                <UFieldGroup aria-label="Tampilan media">
+                    <UButton
+                        icon="i-lucide-layout-grid"
+                        color="neutral"
+                        :variant="viewMode === 'grid' ? 'solid' : 'outline'"
+                        aria-label="Tampilan grid"
+                        :aria-pressed="viewMode === 'grid'"
+                        @click="viewMode = 'grid'"
+                    />
+                    <UButton
+                        icon="i-lucide-list"
+                        color="neutral"
+                        :variant="viewMode === 'list' ? 'solid' : 'outline'"
+                        aria-label="Tampilan list"
+                        :aria-pressed="viewMode === 'list'"
+                        @click="viewMode = 'list'"
+                    />
+                </UFieldGroup>
+
                 <UButton
                     icon="i-lucide-refresh-cw"
                     color="neutral"
@@ -672,7 +731,7 @@ onMounted(() => {
         />
 
         <div
-            v-if="isLoading && mediaData.length === 0"
+            v-if="isLoading && mediaData.length === 0 && viewMode === 'grid'"
             class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
         >
             <div v-for="index in 12" :key="index" class="space-y-2">
@@ -683,7 +742,7 @@ onMounted(() => {
         </div>
 
         <div
-            v-else-if="mediaData.length === 0 && !errorMessage"
+            v-else-if="!isLoading && mediaData.length === 0 && !errorMessage"
             class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-default py-16"
         >
             <UIcon name="i-lucide-images" class="size-8 text-muted" />
@@ -718,6 +777,122 @@ onMounted(() => {
                 class="mt-2"
                 @click="resetFilters"
             />
+        </div>
+
+        <div
+            v-else-if="viewMode === 'list'"
+            class="overflow-hidden rounded-lg border border-default bg-default"
+        >
+            <UTable
+                :data="mediaData"
+                :columns="listColumns"
+                :loading="isLoading"
+                :on-select="selectListRow"
+                sticky
+            >
+                <template #original_name-cell="{ row }">
+                    <div class="flex min-w-56 items-center gap-3">
+                        <div
+                            class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-default bg-elevated"
+                        >
+                            <img
+                                v-if="isImage(row.original)"
+                                :src="row.original.url"
+                                :alt="
+                                    row.original.alt_text ||
+                                    row.original.original_name
+                                "
+                                loading="lazy"
+                                class="size-full object-cover"
+                            />
+                            <UIcon
+                                v-else
+                                :name="fileIcon(row.original)"
+                                class="size-5 text-muted"
+                            />
+                        </div>
+
+                        <div class="min-w-0">
+                            <p
+                                class="max-w-72 truncate font-medium text-highlighted"
+                                :title="displayName(row.original)"
+                            >
+                                {{ displayName(row.original) }}
+                            </p>
+                            <p
+                                v-if="row.original.title"
+                                class="max-w-72 truncate text-xs text-muted"
+                            >
+                                {{ row.original.original_name }}
+                            </p>
+                        </div>
+                    </div>
+                </template>
+
+                <template #mime_type-cell="{ row }">
+                    <UBadge
+                        color="neutral"
+                        variant="subtle"
+                        :label="fileLabel(row.original)"
+                    />
+                </template>
+
+                <template #size-cell="{ row }">
+                    <span class="whitespace-nowrap">
+                        {{ formatSize(row.original.size) }}
+                    </span>
+                </template>
+
+                <template #metadata-cell="{ row }">
+                    <span class="whitespace-nowrap text-muted">
+                        {{ dimensions(row.original) ?? '-' }}
+                    </span>
+                </template>
+
+                <template #categories-cell="{ row }">
+                    <div
+                        v-if="
+                            row.original.categories?.length ||
+                            row.original.tags?.length
+                        "
+                        class="flex max-w-64 flex-wrap gap-1"
+                    >
+                        <UBadge
+                            v-for="category in row.original.categories"
+                            :key="`c-${category.id}`"
+                            color="primary"
+                            variant="subtle"
+                            :label="category.name"
+                        />
+                        <UBadge
+                            v-for="tag in row.original.tags"
+                            :key="`t-${tag.id}`"
+                            color="neutral"
+                            variant="outline"
+                            :label="`#${tag.name}`"
+                        />
+                    </div>
+                    <span v-else class="text-dimmed">-</span>
+                </template>
+
+                <template #created_at-cell="{ row }">
+                    <span class="whitespace-nowrap text-muted">
+                        {{ formatDate(row.original.created_at) }}
+                    </span>
+                </template>
+
+                <template #actions-cell="{ row }">
+                    <div class="flex justify-end">
+                        <UButton
+                            icon="i-lucide-eye"
+                            color="neutral"
+                            variant="ghost"
+                            aria-label="Preview media"
+                            @click.stop="openPreview(row.original)"
+                        />
+                    </div>
+                </template>
+            </UTable>
         </div>
 
         <div
