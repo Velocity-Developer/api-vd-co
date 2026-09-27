@@ -60,6 +60,7 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/themes', [ApiV1ProjectController::class, 'themes']);
     Route::get('/plugins', [ApiV1ProjectController::class, 'plugins']);
     Route::get('/media', [ApiV1MediaController::class, 'index']);
+    Route::get('/gallery', [ApiV1MediaController::class, 'gallery']);
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {

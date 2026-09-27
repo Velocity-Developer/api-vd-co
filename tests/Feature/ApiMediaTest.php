@@ -85,3 +85,49 @@ test('v1 media API paginates and validates query parameters as json', function (
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['type', 'per_page']);
 });
+
+test('v1 gallery API requires a valid signature header', function () {
+    $this->getJson('/api/v1/gallery')->assertUnauthorized();
+    $this->getJson('/api/v1/gallery', ['signature' => 'salah'])->assertForbidden();
+});
+
+test('v1 gallery API lists only images, newest first, with the media filters', function () {
+    $produk = MediaCategory::factory()->create(['slug' => 'produk']);
+    $promo = MediaTag::factory()->create(['slug' => 'promo']);
+
+    $older = Media::factory()->create(['original_name' => 'lama.jpg', 'created_at' => now()->subDay()]);
+    $newer = Media::factory()->create(['original_name' => 'baru.png', 'mime_type' => 'image/png', 'metadata' => ['width' => 800, 'height' => 600]]);
+    $video = Media::factory()->create(['original_name' => 'video.mp4', 'mime_type' => 'video/mp4']);
+    Media::factory()->document()->create(['original_name' => 'brosur.pdf']);
+    Media::factory()->create(['original_name' => 'terhapus.jpg'])->delete();
+
+    $newer->categories()->attach($produk);
+    $newer->tags()->attach($promo);
+    $video->categories()->attach($produk);
+
+    $this->getJson('/api/v1/gallery', mediaApiHeaders())
+        ->assertOk()
+        ->assertJsonPath('status', true)
+        ->assertJsonPath('meta.total', 2)
+        ->assertJsonPath('data.0.id', $newer->id)
+        ->assertJsonPath('data.0.url', asset('storage/'.$newer->path))
+        ->assertJsonPath('data.0.metadata', ['width' => 800, 'height' => 600])
+        ->assertJsonPath('data.1.id', $older->id);
+
+    $names = fn (string $query): array => collect(
+        $this->getJson("/api/v1/gallery?{$query}", mediaApiHeaders())->assertOk()->json('data'),
+    )->pluck('original_name')->sort()->values()->all();
+
+    expect($names('category=produk'))->toBe(['baru.png'])
+        ->and($names('tag=promo'))->toBe(['baru.png'])
+        ->and($names('search=lama'))->toBe(['lama.jpg'])
+        ->and($names('type=video'))->toBe(['baru.png', 'lama.jpg']);
+
+    $this->getJson('/api/v1/gallery?per_page=1&page=2', mediaApiHeaders())
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.last_page', 2);
+
+    $this->getJson('/api/v1/gallery?per_page=500', mediaApiHeaders())
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['per_page']);
+});
