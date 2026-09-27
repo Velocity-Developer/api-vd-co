@@ -27,6 +27,7 @@ import {
     dummyProducts,
     dummyProductBrands,
     dummyProductCategories,
+    dummySellers,
     licenses,
     servers,
     websites,
@@ -54,6 +55,7 @@ import {
     Tags,
     Package,
     BadgeCheck,
+    Store,
 } from 'lucide-vue-next';
 import type { NavItem } from '@/types';
 
@@ -124,6 +126,11 @@ const mainNavItems: NavItem[] = [
                 title: 'Categories',
                 href: dummyProductCategories(),
                 icon: Folder,
+            },
+            {
+                title: 'Sellers',
+                href: dummySellers(),
+                icon: Store,
             },
         ],
     },

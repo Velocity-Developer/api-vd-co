@@ -37,11 +37,23 @@ trait HasPublicImage
     }
 
     /**
+     * Columns holding pictures; override when a model has more than `image`.
+     *
+     * @return list<string>
+     */
+    protected static function imageColumns(): array
+    {
+        return ['image'];
+    }
+
+    /**
      * Store an uploaded picture and return its path on the public disk.
      */
-    public static function storeImage(UploadedFile $file): string
+    public static function storeImage(UploadedFile $file, ?string $subfolder = null): string
     {
-        return $file->store(static::imageDirectory().'/'.now()->format('Y/m'), 'public');
+        $directory = collect([static::imageDirectory(), $subfolder, now()->format('Y/m')])->filter()->implode('/');
+
+        return $file->store($directory, 'public');
     }
 
     /**
@@ -55,28 +67,32 @@ trait HasPublicImage
     }
 
     /**
-     * Swap the picture for an upload, or clear it, and delete the file it replaced.
+     * Swap a picture column for an upload, or clear it, and delete the file it replaced.
+     * Pictures in columns other than `image` go into a subfolder named after the column.
      */
-    public function replaceImage(?UploadedFile $file, bool $remove = false): void
+    public function replaceImage(?UploadedFile $file, bool $remove = false, string $column = 'image'): void
     {
         if (! $file && ! $remove) {
             return;
         }
 
-        $previousImage = $this->image;
+        $previousImage = $this->{$column};
+        $subfolder = $column === 'image' ? null : Str::plural($column);
 
-        $this->update(['image' => $file ? static::storeImage($file) : null]);
+        $this->update([$column => $file ? static::storeImage($file, $subfolder) : null]);
 
         static::deleteStoredImage($previousImage);
     }
 
     /**
-     * Delete the model together with its stored picture.
+     * Delete the model together with all of its stored pictures.
      */
     public function deleteWithImage(): void
     {
         $this->delete();
 
-        static::deleteStoredImage($this->image);
+        foreach (static::imageColumns() as $column) {
+            static::deleteStoredImage($this->{$column});
+        }
     }
 }

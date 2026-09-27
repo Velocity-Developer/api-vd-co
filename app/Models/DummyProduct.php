@@ -34,6 +34,11 @@ class DummyProduct extends Model
         return $this->belongsTo(DummyProductBrand::class, 'dummy_product_brand_id');
     }
 
+    public function seller(): BelongsTo
+    {
+        return $this->belongsTo(DummySeller::class, 'dummy_seller_id');
+    }
+
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(DummyProductCategory::class)->withTimestamps();

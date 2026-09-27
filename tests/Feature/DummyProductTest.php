@@ -3,6 +3,7 @@
 use App\Models\DummyProduct;
 use App\Models\DummyProductBrand;
 use App\Models\DummyProductCategory;
+use App\Models\DummySeller;
 use Database\Seeders\DummyProductSeeder;
 use Illuminate\Support\Facades\Schema;
 
@@ -78,5 +79,7 @@ test('dummy product seeder creates brands, categories and products once', functi
         ->and(DummyProduct::count())->toBe(30)
         ->and(DummyProduct::whereNull('dummy_product_brand_id')->count())->toBe(0)
         ->and(DummyProduct::doesntHave('categories')->count())->toBe(0)
-        ->and(DummyProduct::doesntHave('images')->count())->toBe(0);
+        ->and(DummyProduct::doesntHave('images')->count())->toBe(0)
+        ->and(DummySeller::count())->toBe(4)
+        ->and(DummyProduct::whereNull('dummy_seller_id')->count())->toBe(0);
 });

@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\DummyProduct;
 use App\Models\DummyProductBrand;
 use App\Models\DummyProductCategory;
+use App\Models\DummySeller;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,6 +40,11 @@ class DummyProductResource extends JsonResource
             'brand' => $this->whenLoaded('brand', fn () => $this->brand ? [
                 ...$this->brand->only(['id', 'name', 'slug']),
                 'image_url' => DummyProductBrand::publicImageUrl($this->brand->image),
+            ] : null),
+            'dummy_seller_id' => $this->dummy_seller_id,
+            'seller' => $this->whenLoaded('seller', fn () => $this->seller ? [
+                ...$this->seller->only(['id', 'name', 'slug', 'city', 'is_verified']),
+                'image_url' => DummySeller::publicImageUrl($this->seller->image),
             ] : null),
             'categories' => $this->whenLoaded('categories', fn () => $this->categories->map(fn (DummyProductCategory $category) => [
                 ...$category->only(['id', 'name', 'slug']),

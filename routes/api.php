@@ -65,6 +65,7 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/dummy-products', [ApiV1DummyProductController::class, 'index']);
     Route::get('/dummy-product-brands', [ApiV1DummyProductController::class, 'brands']);
     Route::get('/dummy-product-categories', [ApiV1DummyProductController::class, 'categories']);
+    Route::get('/dummy-sellers', [ApiV1DummyProductController::class, 'sellers']);
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {

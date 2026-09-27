@@ -4,6 +4,7 @@ import { useDebounceFn } from '@vueuse/core';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import PublicImageField from '@/components/PublicImageField.vue';
 
 type Term = {
     id: number;
@@ -71,7 +72,6 @@ const state = reactive<TermFormState>({
 });
 
 const maxImageSizeMb = 5;
-const imageAccept = '.jpg,.jpeg,.png,.webp,.gif,.avif';
 
 const termData = ref<Term[]>([]);
 const meta = ref<PaginationMeta | null>(null);
@@ -90,14 +90,6 @@ const deleteMessage = ref<string | null>(null);
 const serverErrors = ref<Record<string, string>>({});
 /** The saved picture of the record being edited, shown until it is replaced or removed. */
 const currentImageUrl = ref<string | null>(null);
-const isReplacingImage = ref(false);
-
-const showsCurrentImage = computed(
-    () =>
-        currentImageUrl.value !== null &&
-        !state.removeImage &&
-        !isReplacingImage.value,
-);
 
 const isEditing = computed(() => editingTermId.value !== null);
 
@@ -215,13 +207,6 @@ const resetForm = (): void => {
     formMessage.value = null;
     serverErrors.value = {};
     currentImageUrl.value = null;
-    isReplacingImage.value = false;
-};
-
-const keepCurrentImage = (): void => {
-    state.imageFile = null;
-    state.removeImage = false;
-    isReplacingImage.value = false;
 };
 
 const openCreateModal = (): void => {
@@ -620,71 +605,13 @@ onMounted(() => {
                         :help="`JPG, PNG, WEBP, GIF, atau AVIF, maksimal ${maxImageSizeMb} MB.`"
                         :error="fieldError('image_file')"
                     >
-                        <div
-                            v-if="showsCurrentImage"
-                            class="flex items-center gap-3 rounded-md border border-default p-2"
-                        >
-                            <img
-                                :src="currentImageUrl ?? undefined"
-                                :alt="`Gambar ${noun} saat ini`"
-                                class="size-16 shrink-0 rounded object-cover"
-                            />
-                            <div class="flex min-w-0 flex-1 flex-col gap-1">
-                                <p class="text-sm text-muted">
-                                    Gambar saat ini
-                                </p>
-                                <div class="flex gap-1">
-                                    <UButton
-                                        label="Ganti"
-                                        icon="i-lucide-replace"
-                                        color="neutral"
-                                        variant="outline"
-                                        size="xs"
-                                        :disabled="isSaving"
-                                        @click="isReplacingImage = true"
-                                    />
-                                    <UButton
-                                        label="Hapus"
-                                        icon="i-lucide-trash"
-                                        color="error"
-                                        variant="ghost"
-                                        size="xs"
-                                        :disabled="isSaving"
-                                        @click="state.removeImage = true"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <template v-else>
-                            <UFileUpload
-                                v-model="state.imageFile"
-                                :accept="imageAccept"
-                                icon="i-lucide-image-up"
-                                label="Tarik gambar ke sini"
-                                description="atau klik untuk memilih"
-                                :disabled="isSaving"
-                                class="min-h-32 w-full"
-                            />
-                            <UButton
-                                v-if="
-                                    currentImageUrl &&
-                                    (state.removeImage || isReplacingImage)
-                                "
-                                :label="
-                                    state.removeImage
-                                        ? 'Batalkan hapus gambar'
-                                        : 'Batal, pakai gambar lama'
-                                "
-                                icon="i-lucide-undo-2"
-                                color="neutral"
-                                variant="link"
-                                size="xs"
-                                class="mt-1 px-0"
-                                :disabled="isSaving"
-                                @click="keepCurrentImage"
-                            />
-                        </template>
+                        <PublicImageField
+                            v-model:file="state.imageFile"
+                            v-model:remove="state.removeImage"
+                            :current-url="currentImageUrl"
+                            :noun="noun"
+                            :disabled="isSaving"
+                        />
                     </UFormField>
 
                     <UFormField

@@ -23,6 +23,7 @@ class DummyProductController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'regex:/^(none|\d+)$/'],
+            'seller' => ['nullable', 'string', 'regex:/^(none|\d+)$/'],
             'category' => ['nullable', 'integer'],
         ]);
 
@@ -30,7 +31,7 @@ class DummyProductController extends Controller
 
         return DummyProductResource::collection(
             DummyProduct::query()
-                ->with(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images'])
+                ->with(['brand:id,name,slug,image', 'seller:id,name,slug,image,city,is_verified', 'categories:id,name,slug,image', 'images'])
                 ->when($search !== '', function (Builder $query) use ($search): void {
                     $query->where(function (Builder $query) use ($search): void {
                         $query->where('title', 'like', "%{$search}%")
@@ -41,6 +42,11 @@ class DummyProductController extends Controller
                     $brand === 'none'
                         ? $query->whereNull('dummy_product_brand_id')
                         : $query->where('dummy_product_brand_id', (int) $brand);
+                })
+                ->when($validated['seller'] ?? null, function (Builder $query, string $seller): void {
+                    $seller === 'none'
+                        ? $query->whereNull('dummy_seller_id')
+                        : $query->where('dummy_seller_id', (int) $seller);
                 })
                 ->when($validated['category'] ?? null, fn (Builder $query, string $category) => $query->whereHas(
                     'categories',
@@ -159,6 +165,6 @@ class DummyProductController extends Controller
 
     private function loadRelations(DummyProduct $product): DummyProduct
     {
-        return $product->load(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images']);
+        return $product->load(['brand:id,name,slug,image', 'seller:id,name,slug,image,city,is_verified', 'categories:id,name,slug,image', 'images']);
     }
 }

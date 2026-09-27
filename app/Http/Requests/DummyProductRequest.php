@@ -68,6 +68,7 @@ class DummyProductRequest extends FormRequest
                 ),
             ],
             'dummy_product_brand_id' => ['nullable', 'integer', Rule::exists('dummy_product_brands', 'id')],
+            'dummy_seller_id' => ['nullable', 'integer', Rule::exists('dummy_sellers', 'id')],
             'category_ids' => ['nullable', 'array'],
             'category_ids.*' => ['integer', 'distinct', Rule::exists('dummy_product_categories', 'id')],
         ];
@@ -110,6 +111,7 @@ class DummyProductRequest extends FormRequest
             'sku.required' => 'SKU wajib diisi.',
             'sku.unique' => 'SKU sudah dipakai produk lain.',
             'dummy_product_brand_id.exists' => 'Brand tidak ditemukan.',
+            'dummy_seller_id.exists' => 'Seller tidak ditemukan.',
             'category_ids.*.exists' => 'Kategori tidak ditemukan.',
             'image_file.image' => 'File harus berupa gambar.',
             'image_file.mimes' => 'Gambar harus berformat JPG, PNG, WEBP, GIF, atau AVIF.',

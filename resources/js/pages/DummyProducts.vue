@@ -13,6 +13,12 @@ type Term = {
     slug: string;
 };
 
+type SellerSummary = Term & {
+    city: string | null;
+    is_verified: boolean;
+    image_url: string | null;
+};
+
 type GalleryImage = {
     id: number;
     path: string;
@@ -35,6 +41,8 @@ type DummyProduct = {
     gallery?: GalleryImage[];
     dummy_product_brand_id: number | null;
     brand?: Term | null;
+    dummy_seller_id: number | null;
+    seller?: SellerSummary | null;
     categories?: Term[];
     created_at: string;
     updated_at: string;
@@ -55,6 +63,7 @@ type ProductFormState = {
     title: string;
     sku: string;
     brandId: number;
+    sellerId: number;
     categoryIds: number[];
     /** UInput type="number" emits numbers; an emptied field is ''. */
     price: NumericInput;
@@ -85,12 +94,14 @@ defineOptions({
     },
 });
 
-/** USelect cannot hold null, so 0 stands for "no brand". */
+/** USelect cannot hold null, so 0 stands for "no brand" / "no seller". */
 const noBrand = 0;
+const noSeller = 0;
 
 const columns: TableColumn<DummyProduct>[] = [
     { accessorKey: 'title', header: 'Produk' },
     { accessorKey: 'brand', header: 'Brand' },
+    { accessorKey: 'seller', header: 'Seller' },
     { accessorKey: 'categories', header: 'Kategori' },
     { accessorKey: 'price', header: 'Harga' },
     { accessorKey: 'stock', header: 'Stok' },
@@ -102,6 +113,7 @@ const emptyForm = (): ProductFormState => ({
     title: '',
     sku: '',
     brandId: noBrand,
+    sellerId: noSeller,
     categoryIds: [],
     price: '',
     priceDiscount: '',
@@ -119,10 +131,12 @@ const state = reactive<ProductFormState>(emptyForm());
 
 const productData = ref<DummyProduct[]>([]);
 const brands = ref<Term[]>([]);
+const sellers = ref<Term[]>([]);
 const categories = ref<Term[]>([]);
 const meta = ref<PaginationMeta | null>(null);
 const search = ref('');
 const selectedBrand = ref('all');
+const selectedSeller = ref('all');
 const selectedCategory = ref('all');
 const currentPage = ref(1);
 const isLoading = ref(true);
@@ -132,6 +146,23 @@ const isModalOpen = ref(false);
 const isDeleteModalOpen = ref(false);
 const editingProductId = ref<number | null>(null);
 const deletingProduct = ref<DummyProduct | null>(null);
+const previewProduct = ref<DummyProduct | null>(null);
+const isPreviewOpen = ref(false);
+const activePreviewImage = ref(0);
+
+/** Main picture first, then the gallery in its saved order. */
+const previewImages = computed(() => {
+    const product = previewProduct.value;
+
+    if (!product) {
+        return [];
+    }
+
+    return [
+        product.image_url,
+        ...(product.gallery ?? []).map((image) => image.url),
+    ].filter((url): url is string => Boolean(url));
+});
 const errorMessage = ref<string | null>(null);
 const formMessage = ref<string | null>(null);
 const deleteMessage = ref<string | null>(null);
@@ -165,6 +196,15 @@ const brandFilterOptions = computed(() => [
     })),
 ]);
 
+const sellerFilterOptions = computed(() => [
+    { label: 'Semua seller', value: 'all' },
+    { label: 'Tanpa seller', value: 'none' },
+    ...sellers.value.map((seller) => ({
+        label: seller.name,
+        value: String(seller.id),
+    })),
+]);
+
 const categoryFilterOptions = computed(() => [
     { label: 'Semua kategori', value: 'all' },
     ...categories.value.map((category) => ({
@@ -178,6 +218,14 @@ const brandOptions = computed(() => [
     ...brands.value.map((brand) => ({ label: brand.name, value: brand.id })),
 ]);
 
+const sellerOptions = computed(() => [
+    { label: 'Tanpa seller', value: noSeller },
+    ...sellers.value.map((seller) => ({
+        label: seller.name,
+        value: seller.id,
+    })),
+]);
+
 const categoryOptions = computed(() =>
     categories.value.map((category) => ({
         label: category.name,
@@ -189,6 +237,7 @@ const hasActiveFilter = computed(
     () =>
         search.value.trim() !== '' ||
         selectedBrand.value !== 'all' ||
+        selectedSeller.value !== 'all' ||
         selectedCategory.value !== 'all',
 );
 
@@ -244,6 +293,10 @@ const fetchProducts = async (page = 1): Promise<void> => {
                     selectedBrand.value === 'all'
                         ? undefined
                         : selectedBrand.value,
+                seller:
+                    selectedSeller.value === 'all'
+                        ? undefined
+                        : selectedSeller.value,
                 category:
                     selectedCategory.value === 'all'
                         ? undefined
@@ -263,19 +316,24 @@ const fetchProducts = async (page = 1): Promise<void> => {
 
 const fetchOptions = async (): Promise<void> => {
     try {
-        const [brandResponse, categoryResponse] = await Promise.all([
-            axios.get<{ data: Term[] }>('/ajax/dummy-product-brands', {
-                params: { all: 1 },
-            }),
-            axios.get<{ data: Term[] }>('/ajax/dummy-product-categories', {
-                params: { all: 1 },
-            }),
-        ]);
+        const [brandResponse, sellerResponse, categoryResponse] =
+            await Promise.all([
+                axios.get<{ data: Term[] }>('/ajax/dummy-product-brands', {
+                    params: { all: 1 },
+                }),
+                axios.get<{ data: Term[] }>('/ajax/dummy-sellers', {
+                    params: { all: 1 },
+                }),
+                axios.get<{ data: Term[] }>('/ajax/dummy-product-categories', {
+                    params: { all: 1 },
+                }),
+            ]);
 
         brands.value = brandResponse.data.data;
+        sellers.value = sellerResponse.data.data;
         categories.value = categoryResponse.data.data;
     } catch {
-        toast.error('Daftar brand dan kategori gagal dimuat.');
+        toast.error('Daftar brand, seller, dan kategori gagal dimuat.');
     }
 };
 
@@ -294,6 +352,7 @@ const debouncedSearch = useDebounceFn(refetchFromFirstPage, 400);
 const resetFilters = (): void => {
     search.value = '';
     selectedBrand.value = 'all';
+    selectedSeller.value = 'all';
     selectedCategory.value = 'all';
 };
 
@@ -398,6 +457,7 @@ const openEditModal = (product: DummyProduct): void => {
         title: product.title,
         sku: product.sku,
         brandId: product.dummy_product_brand_id ?? noBrand,
+        sellerId: product.dummy_seller_id ?? noSeller,
         categoryIds: (product.categories ?? []).map((category) => category.id),
         price: String(Number(product.price)),
         priceDiscount:
@@ -431,6 +491,7 @@ const buildFormData = (): FormData => {
         sku: state.sku.trim(),
         dummy_product_brand_id:
             state.brandId === noBrand ? null : state.brandId,
+        dummy_seller_id: state.sellerId === noSeller ? null : state.sellerId,
         price: numberOrNull(state.price),
         price_discount: numberOrNull(state.priceDiscount),
         rating: numberOrNull(state.rating) ?? 0,
@@ -520,6 +581,23 @@ const submitProduct = async (): Promise<void> => {
     }
 };
 
+const openPreview = (product: DummyProduct): void => {
+    previewProduct.value = product;
+    activePreviewImage.value = 0;
+    isPreviewOpen.value = true;
+};
+
+const editFromPreview = (): void => {
+    if (!previewProduct.value) {
+        return;
+    }
+
+    const product = previewProduct.value;
+
+    isPreviewOpen.value = false;
+    openEditModal(product);
+};
+
 const openDeleteModal = (product: DummyProduct): void => {
     deletingProduct.value = product;
     deleteMessage.value = null;
@@ -578,7 +656,7 @@ watch(search, () => {
     void debouncedSearch();
 });
 
-watch([selectedBrand, selectedCategory], refetchFromFirstPage);
+watch([selectedBrand, selectedSeller, selectedCategory], refetchFromFirstPage);
 
 watch(isModalOpen, (open) => {
     if (!open && !isSaving.value) {
@@ -604,10 +682,12 @@ onMounted(() => {
 
     <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
         <div
-            class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+            class="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between"
         >
             <div>
-                <h1 class="text-2xl font-semibold text-highlighted">
+                <h1
+                    class="text-2xl font-semibold whitespace-nowrap text-highlighted"
+                >
                     Dummy Products
                 </h1>
                 <p class="text-sm text-muted">
@@ -628,6 +708,13 @@ onMounted(() => {
                     :items="brandFilterOptions"
                     class="w-40"
                     aria-label="Filter brand"
+                />
+
+                <USelect
+                    v-model="selectedSeller"
+                    :items="sellerFilterOptions"
+                    class="w-40"
+                    aria-label="Filter seller"
                 />
 
                 <USelect
@@ -723,6 +810,26 @@ onMounted(() => {
                     <span v-else class="text-dimmed">-</span>
                 </template>
 
+                <template #seller-cell="{ row }">
+                    <div v-if="row.original.seller" class="min-w-32">
+                        <p
+                            class="inline-flex items-center gap-1 text-highlighted"
+                        >
+                            {{ row.original.seller.name }}
+                            <UIcon
+                                v-if="row.original.seller.is_verified"
+                                name="i-lucide-badge-check"
+                                class="size-4 text-success"
+                                aria-label="Terverifikasi"
+                            />
+                        </p>
+                        <p class="text-xs text-muted">
+                            {{ row.original.seller.city || '-' }}
+                        </p>
+                    </div>
+                    <span v-else class="text-dimmed">-</span>
+                </template>
+
                 <template #categories-cell="{ row }">
                     <div
                         v-if="row.original.categories?.length"
@@ -795,6 +902,15 @@ onMounted(() => {
 
                 <template #actions-cell="{ row }">
                     <div class="flex justify-end gap-1">
+                        <UButton
+                            icon="i-lucide-eye"
+                            color="neutral"
+                            variant="ghost"
+                            aria-label="Preview produk"
+                            :disabled="isLoading || isDeleting"
+                            @click="openPreview(row.original)"
+                        />
+
                         <UButton
                             icon="i-lucide-pencil"
                             color="neutral"
@@ -925,10 +1041,24 @@ onMounted(() => {
                     </UFormField>
 
                     <UFormField
+                        name="dummy_seller_id"
+                        label="Seller"
+                        :error="fieldError('dummy_seller_id')"
+                        class="content-start"
+                    >
+                        <USelect
+                            v-model="state.sellerId"
+                            :items="sellerOptions"
+                            :disabled="isSaving"
+                            class="w-full"
+                        />
+                    </UFormField>
+
+                    <UFormField
                         name="category_ids"
                         label="Kategori"
                         :error="fieldError('category_ids')"
-                        class="content-start sm:col-span-2"
+                        class="content-start"
                     >
                         <USelectMenu
                             v-model="state.categoryIds"
@@ -1265,6 +1395,229 @@ onMounted(() => {
                     color="error"
                     :loading="isDeleting"
                     @click="deleteProduct"
+                />
+            </template>
+        </UModal>
+
+        <UModal
+            v-model:open="isPreviewOpen"
+            :title="
+                previewProduct
+                    ? `Preview ${previewProduct.title}`
+                    : 'Preview produk'
+            "
+            description="Tampilan halaman detail produk."
+            :ui="{ content: 'sm:max-w-4xl', footer: 'justify-end' }"
+        >
+            <template #body>
+                <div
+                    v-if="previewProduct"
+                    class="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+                >
+                    <div class="space-y-3">
+                        <div
+                            class="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-default bg-elevated"
+                        >
+                            <img
+                                v-if="previewImages.length"
+                                :src="previewImages[activePreviewImage]"
+                                :alt="previewProduct.title"
+                                class="size-full object-cover"
+                            />
+                            <div
+                                v-else
+                                class="flex flex-col items-center gap-2 text-dimmed"
+                            >
+                                <UIcon
+                                    name="i-lucide-package"
+                                    class="size-10"
+                                />
+                                <span class="text-sm">Belum ada gambar</span>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="previewImages.length > 1"
+                            class="grid grid-cols-5 gap-2"
+                        >
+                            <button
+                                v-for="(url, index) in previewImages"
+                                :key="`${index}-${url}`"
+                                type="button"
+                                class="aspect-square overflow-hidden rounded-md border-2 transition-colors focus-visible:outline-2 focus-visible:outline-primary"
+                                :class="
+                                    index === activePreviewImage
+                                        ? 'border-primary'
+                                        : 'border-transparent opacity-70 hover:opacity-100'
+                                "
+                                :aria-label="`Lihat gambar ${index + 1}`"
+                                :aria-pressed="index === activePreviewImage"
+                                @click="activePreviewImage = index"
+                            >
+                                <img
+                                    :src="url"
+                                    alt=""
+                                    loading="lazy"
+                                    class="size-full object-cover"
+                                />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="min-w-0 space-y-4">
+                        <div class="space-y-1">
+                            <p
+                                v-if="previewProduct.brand"
+                                class="text-sm font-medium text-muted"
+                            >
+                                {{ previewProduct.brand.name }}
+                            </p>
+                            <h2 class="text-2xl font-semibold text-highlighted">
+                                {{ previewProduct.title }}
+                            </h2>
+                            <p
+                                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    <UIcon
+                                        name="i-lucide-star"
+                                        class="size-4 text-warning"
+                                    />
+                                    {{
+                                        Number(previewProduct.rating).toFixed(1)
+                                    }}
+                                </span>
+                                <span>SKU {{ previewProduct.sku }}</span>
+                            </p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <p class="text-3xl font-semibold text-highlighted">
+                                {{
+                                    formatPrice(
+                                        previewProduct.price_discount ??
+                                            previewProduct.price,
+                                    )
+                                }}
+                            </p>
+                            <p
+                                v-if="previewProduct.price_discount !== null"
+                                class="flex items-center gap-2 text-sm text-muted"
+                            >
+                                <span class="line-through">
+                                    {{ formatPrice(previewProduct.price) }}
+                                </span>
+                                <UBadge
+                                    v-if="discountPercent(previewProduct)"
+                                    color="error"
+                                    variant="subtle"
+                                    size="sm"
+                                    :label="`-${discountPercent(previewProduct)}%`"
+                                />
+                            </p>
+                        </div>
+
+                        <dl class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <dt class="text-muted">Stok</dt>
+                                <dd
+                                    :class="
+                                        previewProduct.stock > 0
+                                            ? 'text-highlighted'
+                                            : 'text-error'
+                                    "
+                                >
+                                    {{
+                                        previewProduct.stock > 0
+                                            ? `${previewProduct.stock} tersedia`
+                                            : 'Habis'
+                                    }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-muted">Berat</dt>
+                                <dd class="text-highlighted">
+                                    {{
+                                        previewProduct.weight === null
+                                            ? '-'
+                                            : `${Number(previewProduct.weight).toLocaleString('id-ID')} gram`
+                                    }}
+                                </dd>
+                            </div>
+                        </dl>
+
+                        <div
+                            v-if="previewProduct.categories?.length"
+                            class="flex flex-wrap gap-1"
+                        >
+                            <UBadge
+                                v-for="category in previewProduct.categories"
+                                :key="category.id"
+                                color="neutral"
+                                variant="subtle"
+                                :label="category.name"
+                            />
+                        </div>
+
+                        <div
+                            v-if="previewProduct.seller"
+                            class="flex items-center gap-3 rounded-lg border border-default p-3"
+                        >
+                            <UAvatar
+                                :src="
+                                    previewProduct.seller.image_url ?? undefined
+                                "
+                                :alt="previewProduct.seller.name"
+                                icon="i-lucide-store"
+                                size="lg"
+                            />
+                            <div class="min-w-0">
+                                <p
+                                    class="flex items-center gap-1 font-medium text-highlighted"
+                                >
+                                    <span class="truncate">
+                                        {{ previewProduct.seller.name }}
+                                    </span>
+                                    <UIcon
+                                        v-if="previewProduct.seller.is_verified"
+                                        name="i-lucide-badge-check"
+                                        class="size-4 shrink-0 text-success"
+                                        aria-label="Terverifikasi"
+                                    />
+                                </p>
+                                <p class="text-xs text-muted">
+                                    {{ previewProduct.seller.city || '-' }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1 text-sm">
+                            <p class="font-medium text-highlighted">
+                                Deskripsi
+                            </p>
+                            <p class="whitespace-pre-line text-muted">
+                                {{
+                                    previewProduct.description ||
+                                    'Belum ada deskripsi.'
+                                }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template #footer>
+                <UButton
+                    label="Tutup"
+                    color="neutral"
+                    variant="outline"
+                    @click="isPreviewOpen = false"
+                />
+
+                <UButton
+                    label="Edit"
+                    icon="i-lucide-pencil"
+                    @click="editFromPreview"
                 />
             </template>
         </UModal>

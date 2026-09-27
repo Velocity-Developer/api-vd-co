@@ -4,6 +4,7 @@ use App\Models\DummyProduct;
 use App\Models\DummyProductBrand;
 use App\Models\DummyProductCategory;
 use App\Models\DummyProductImage;
+use App\Models\DummySeller;
 
 function dummyProductApiHeaders(): array
 {
@@ -104,3 +105,31 @@ test('v1 dummy product brand and category APIs list terms by name with product c
     'brands' => ['/api/v1/dummy-product-brands', DummyProductBrand::class],
     'categories' => ['/api/v1/dummy-product-categories', DummyProductCategory::class],
 ]);
+
+test('v1 dummy sellers API lists sellers and products can be filtered by seller slug', function () {
+    $this->getJson('/api/v1/dummy-sellers')->assertUnauthorized();
+
+    $zeta = DummySeller::factory()->create(['name' => 'Zeta Store', 'slug' => 'zeta', 'city' => 'Medan', 'is_verified' => true, 'image' => 'dummy-sellers/2026/09/zeta.png', 'banner' => 'https://picsum.photos/seed/zeta/1200/400']);
+    DummySeller::factory()->create(['name' => 'Alfa Store', 'slug' => 'alfa', 'city' => 'Jakarta', 'is_verified' => false]);
+    DummyProduct::factory()->create(['title' => 'Barang Zeta', 'dummy_seller_id' => $zeta->id]);
+    DummyProduct::factory()->create(['title' => 'Barang Lain', 'dummy_seller_id' => null]);
+
+    $this->getJson('/api/v1/dummy-sellers', dummyProductApiHeaders())
+        ->assertOk()
+        ->assertJsonPath('status', true)
+        ->assertJsonPath('meta.total', 2)
+        ->assertJsonPath('data.0.slug', 'alfa')
+        ->assertJsonPath('data.1.slug', 'zeta')
+        ->assertJsonPath('data.1.products_count', 1)
+        ->assertJsonPath('data.1.image_url', asset('storage/dummy-sellers/2026/09/zeta.png'))
+        ->assertJsonPath('data.1.banner_url', 'https://picsum.photos/seed/zeta/1200/400');
+
+    $this->getJson('/api/v1/dummy-sellers?verified=1', dummyProductApiHeaders())->assertJsonCount(1, 'data')->assertJsonPath('data.0.slug', 'zeta');
+    $this->getJson('/api/v1/dummy-sellers?city=Jakarta', dummyProductApiHeaders())->assertJsonCount(1, 'data')->assertJsonPath('data.0.slug', 'alfa');
+
+    $this->getJson('/api/v1/dummy-products?seller=zeta', dummyProductApiHeaders())
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.title', 'Barang Zeta')
+        ->assertJsonPath('data.0.seller.slug', 'zeta')
+        ->assertJsonPath('data.0.seller.is_verified', true);
+});

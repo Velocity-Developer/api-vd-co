@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\DummyProductBrandResource;
 use App\Http\Resources\DummyProductCategoryResource;
 use App\Http\Resources\DummyProductResource;
+use App\Http\Resources\DummySellerResource;
 use App\Models\DummyProduct;
 use App\Models\DummyProductBrand;
 use App\Models\DummyProductCategory;
+use App\Models\DummySeller;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class DummyProductController extends Controller
 {
     /**
-     * List dummy products (paginated), newest first, with brand, categories and gallery.
+     * List dummy products (paginated), newest first, with brand, seller, categories and gallery.
      */
     public function index(Request $request): JsonResponse
     {
@@ -26,12 +28,13 @@ class DummyProductController extends Controller
             ...$this->listRules(),
             'brand' => ['nullable', 'string', 'max:191'],
             'category' => ['nullable', 'string', 'max:191'],
+            'seller' => ['nullable', 'string', 'max:191'],
         ]);
 
         $search = trim($validated['search'] ?? '');
 
         $products = DummyProduct::query()
-            ->with(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images'])
+            ->with(['brand:id,name,slug,image', 'seller:id,name,slug,image,city,is_verified', 'categories:id,name,slug,image', 'images'])
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
@@ -40,6 +43,10 @@ class DummyProductController extends Controller
             })
             ->when($validated['brand'] ?? null, fn (Builder $query, string $slug) => $query->whereHas(
                 'brand',
+                fn (Builder $query) => $query->where('slug', $slug),
+            ))
+            ->when($validated['seller'] ?? null, fn (Builder $query, string $slug) => $query->whereHas(
+                'seller',
                 fn (Builder $query) => $query->where('slug', $slug),
             ))
             ->when($validated['category'] ?? null, fn (Builder $query, string $slug) => $query->whereHas(
@@ -72,6 +79,36 @@ class DummyProductController extends Controller
         $categories = $this->termQuery(DummyProductCategory::query(), $request->validate($this->listRules()));
 
         return $this->paginatedResponse($categories, DummyProductCategoryResource::collection($categories));
+    }
+
+    /**
+     * List dummy sellers (paginated) by name, with their product count.
+     */
+    public function sellers(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            ...$this->listRules(),
+            'city' => ['nullable', 'string', 'max:100'],
+            'verified' => ['nullable', 'boolean'],
+        ]);
+
+        $search = trim($validated['search'] ?? '');
+
+        $sellers = DummySeller::query()
+            ->withCount('products')
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('slug', 'like', "%{$search}%");
+                });
+            })
+            ->when($validated['city'] ?? null, fn (Builder $query, string $city) => $query->where('city', $city))
+            ->when($request->filled('verified'), fn (Builder $query) => $query->where('is_verified', $request->boolean('verified')))
+            ->orderBy('name')
+            ->paginate($validated['per_page'] ?? 15)
+            ->withQueryString();
+
+        return $this->paginatedResponse($sellers, DummySellerResource::collection($sellers));
     }
 
     /**
