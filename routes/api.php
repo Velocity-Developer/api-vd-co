@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AiProviderController as ApiV1AiProviderController;
 use App\Http\Controllers\Api\V1\BeaverBuilderController as ApiV1BeaverBuilderController;
+use App\Http\Controllers\Api\V1\DummyProductController as ApiV1DummyProductController;
 use App\Http\Controllers\Api\V1\LicenseController as ApiV1LicenseController;
 use App\Http\Controllers\Api\V1\MediaController as ApiV1MediaController;
 use App\Http\Controllers\Api\V1\NewsController as ApiV1NewsController;
@@ -61,6 +62,9 @@ Route::middleware('public.ai.signature')->prefix('v1')->group(function () {
     Route::get('/plugins', [ApiV1ProjectController::class, 'plugins']);
     Route::get('/media', [ApiV1MediaController::class, 'index']);
     Route::get('/gallery', [ApiV1MediaController::class, 'gallery']);
+    Route::get('/dummy-products', [ApiV1DummyProductController::class, 'index']);
+    Route::get('/dummy-product-brands', [ApiV1DummyProductController::class, 'brands']);
+    Route::get('/dummy-product-categories', [ApiV1DummyProductController::class, 'categories']);
 });
 
 Route::middleware('github.signature')->prefix('v1')->group(function () {
