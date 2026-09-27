@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Ai\Agents\ArticleGenerator;
+use App\Exceptions\AiProviderException;
 use App\Services\AiProviderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,13 @@ class ArticleGeneratorController extends Controller
             'topic' => 'required|string|max:255',
         ]);
 
-        $article = $aiProviderService->article_generator($validated['topic']);
+        try {
+            $article = $aiProviderService->article_generator($validated['topic']);
+        } catch (AiProviderException $exception) {
+            report($exception);
+
+            return response()->json(['message' => $exception->getMessage()], 502);
+        }
 
         return response()->json([
             'data' => $article,

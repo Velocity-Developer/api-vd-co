@@ -1,6 +1,7 @@
 <?php
 
 use App\Ai\Agents\ArticleGenerator;
+use App\Exceptions\AiProviderException;
 use App\Models\User;
 use App\Services\AiProviderService;
 
@@ -77,4 +78,18 @@ test('authenticated users can generate article content from a topic using the ar
     ArticleGenerator::assertPrompted(
         'Buatkan artikel menarik tentang: Laravel testing',
     );
+});
+
+test('article generator answers with a json 502 and the reason when the ai provider fails', function () {
+    $service = Mockery::mock(AiProviderService::class);
+    $service->shouldReceive('article_generator')
+        ->once()
+        ->andThrow(new AiProviderException('AI provider menolak permintaan (HTTP 500).'));
+
+    app()->instance(AiProviderService::class, $service);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson('/ajax/article-generator', ['topic' => 'Laravel testing'])
+        ->assertStatus(502)
+        ->assertJsonPath('message', 'AI provider menolak permintaan (HTTP 500).');
 });

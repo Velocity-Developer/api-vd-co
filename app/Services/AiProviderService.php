@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Exceptions\AiProviderException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 class AiProviderService
@@ -16,46 +18,55 @@ class AiProviderService
      *     tags: array<int, string>,
      *     image_keyword: string
      * }
+     *
+     * @throws AiProviderException when the provider fails or does not return an article.
      */
     public function article_generator(string $topic, bool $stream = false): array
     {
         // 1. Kirim POST request ke API Anda
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer '.config('services.ai_provider.key'),
-            'Content-Type' => 'application/json',
-        ])->post(config('services.ai_provider.url').'/chat/completions', [
-            'model' => config('services.ai_provider.model'),
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => $this->system_prompt(),
+        try {
+            $response = Http::timeout(120)->withHeaders([
+                'Authorization' => 'Bearer '.config('services.ai_provider.key'),
+                'Content-Type' => 'application/json',
+            ])->post(config('services.ai_provider.url').'/chat/completions', [
+                'model' => config('services.ai_provider.model'),
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => $this->system_prompt(),
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => 'Buatkan artikel menarik tentang: '.$topic,
+                    ],
                 ],
-                [
-                    'role' => 'user',
-                    'content' => 'Buatkan artikel menarik tentang: '.$topic,
+                'stream' => $stream,
+                'response_format' => [
+                    'type' => 'json_object',
                 ],
-            ],
-            'stream' => $stream,
-            'response_format' => [
-                'type' => 'json_object',
-            ],
-        ]);
-
-        // 2. Cek apakah request ke API sukses
-        if ($response->successful()) {
-            // Parse JSON Pertama: Mengubah response API menjadi array PHP
-            $apiData = $response->json();
-
-            // Mengambil string teks JSON yang ter-escape dari dalam properti content
-            $contentString = $apiData['choices'][0]['message']['content'];
-
-            // Parse JSON Kedua: Mengubah string artikel menjadi array PHP yang bersih
-            $article = json_decode($contentString, true);
-
-            return $article;
+            ]);
+        } catch (ConnectionException $exception) {
+            throw new AiProviderException('AI provider tidak bisa dihubungi atau terlalu lama menjawab.', previous: $exception);
         }
 
-        return response()->array(['error' => 'Gagal generate artikel'], 500);
+        // 2. Cek apakah request ke API sukses
+        if (! $response->successful()) {
+            throw new AiProviderException("AI provider menolak permintaan (HTTP {$response->status()}).");
+        }
+
+        // Mengambil string teks JSON yang ter-escape dari dalam properti content
+        $contentString = $response->json('choices.0.message.content');
+
+        // Parse JSON Kedua: Mengubah string artikel menjadi array PHP yang bersih; model kadang membungkusnya dengan ```json
+        $article = is_string($contentString)
+            ? json_decode(preg_replace('/^\s*```(?:json)?\s*|\s*```\s*$/', '', $contentString), true)
+            : null;
+
+        if (! is_array($article) || blank($article['content'] ?? null)) {
+            throw new AiProviderException('Jawaban AI provider bukan artikel yang valid. Coba generate lagi.');
+        }
+
+        return $article;
     }
 
     /**

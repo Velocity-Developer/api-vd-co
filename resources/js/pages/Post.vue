@@ -3,7 +3,6 @@ import { Head, usePage } from '@inertiajs/vue3';
 import type { EditorToolbarItem, FormError } from '@nuxt/ui';
 import axios, { AxiosError } from 'axios';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { generate as generateArticle } from '@/actions/App/Http/Controllers/ArticleGeneratorController';
 import { post, posts } from '@/routes';
 
 type Taxonomy = {
@@ -386,7 +385,10 @@ const aiFieldError = (name: string): string | undefined => {
 };
 
 const recommendedImagesPaginationSummary = computed(() => {
-    if (!recommendedImagesMeta.value || recommendedImagesMeta.value.total === 0) {
+    if (
+        !recommendedImagesMeta.value ||
+        recommendedImagesMeta.value.total === 0
+    ) {
         return '0 gambar';
     }
 
@@ -630,7 +632,13 @@ const handleValidationErrors = (error: unknown): void => {
 
 const handleAiValidationErrors = (error: unknown): void => {
     if (!(error instanceof AxiosError) || error.response?.status !== 422) {
-        aiFormMessage.value = 'Artikel AI gagal dibuat.';
+        const serverMessage =
+            error instanceof AxiosError
+                ? (error.response?.data as ValidationResponse | undefined)
+                      ?.message
+                : undefined;
+
+        aiFormMessage.value = serverMessage || 'Artikel AI gagal dibuat.';
 
         return;
     }
@@ -741,7 +749,10 @@ const openRecommendedImagesModal = async (): Promise<void> => {
 };
 
 const closeRecommendedImagesModal = (): void => {
-    if (isSearchingRecommendedImages.value || isApplyingRecommendedImage.value) {
+    if (
+        isSearchingRecommendedImages.value ||
+        isApplyingRecommendedImage.value
+    ) {
         return;
     }
 
@@ -757,16 +768,13 @@ const submitGenerateArticle = async (): Promise<void> => {
     aiServerErrors.value = {};
 
     try {
-        const route = generateArticle();
-        const response = await axios({
-            url: route.url,
-            method: route.method,
-            data: {
-                topic: topicState.topic,
-            },
+        const response = await axios.post('/ajax/article-generator', {
+            topic: topicState.topic,
         });
         const payload =
-            response.data && typeof response.data === 'object' && 'data' in response.data
+            response.data &&
+            typeof response.data === 'object' &&
+            'data' in response.data
                 ? response.data.data
                 : response.data;
         const { article, raw } = normalizeGeneratedArticle(payload);
@@ -797,7 +805,8 @@ const searchRecommendedImages = async (page = 1): Promise<void> => {
     if (!query) {
         recommendedImages.value = [];
         recommendedImagesMeta.value = null;
-        recommendedImagesError.value = 'Masukkan kata kunci untuk mencari gambar.';
+        recommendedImagesError.value =
+            'Masukkan kata kunci untuk mencari gambar.';
 
         return;
     }
@@ -808,17 +817,16 @@ const searchRecommendedImages = async (page = 1): Promise<void> => {
     selectedRecommendedImageId.value = null;
 
     try {
-        const response = await axios.get<PaginatedCollectionResponse<RecommendedImage>>(
-            '/ajax/posts/recommended-images',
-            {
-                params: {
-                    query,
-                    page,
-                    per_page: 12,
-                    orientation: recommendedImageSearchState.orientation,
-                },
+        const response = await axios.get<
+            PaginatedCollectionResponse<RecommendedImage>
+        >('/ajax/posts/recommended-images', {
+            params: {
+                query,
+                page,
+                per_page: 12,
+                orientation: recommendedImageSearchState.orientation,
             },
-        );
+        });
 
         recommendedImages.value = response.data.data;
         recommendedImagesMeta.value = response.data.meta;
@@ -890,7 +898,9 @@ const selectRecommendedImage = async (
                 ? 'gif'
                 : 'jpg';
         const fileNameBase =
-            recommendedImage.description?.trim() || state.slug || 'unsplash-image';
+            recommendedImage.description?.trim() ||
+            state.slug ||
+            'unsplash-image';
 
         image.value = new File(
             [response.data],
@@ -1004,7 +1014,7 @@ onMounted(async () => {
                 </p>
             </div>
 
-            <div class="flex items-center justify-end gap-2">                
+            <div class="flex items-center justify-end gap-2">
                 <UButton
                     icon="i-lucide-brain"
                     color="primary"
@@ -1292,10 +1302,7 @@ onMounted(async () => {
                 <div v-if="aiResult || aiRawResult" class="mt-6 space-y-4">
                     <USeparator label="Hasil Generate" />
 
-                    <UFormField
-                        v-if="aiResult?.title"
-                        label="Title"
-                    >
+                    <UFormField v-if="aiResult?.title" label="Title">
                         <UTextarea
                             :model-value="aiResult.title"
                             :rows="2"
@@ -1304,10 +1311,7 @@ onMounted(async () => {
                         />
                     </UFormField>
 
-                    <UFormField
-                        v-if="aiResult?.excerpt"
-                        label="Excerpt"
-                    >
+                    <UFormField v-if="aiResult?.excerpt" label="Excerpt">
                         <UTextarea
                             :model-value="aiResult.excerpt"
                             :rows="3"
@@ -1316,10 +1320,7 @@ onMounted(async () => {
                         />
                     </UFormField>
 
-                    <UFormField
-                        v-if="aiResult?.content"
-                        label="Content"
-                    >
+                    <UFormField v-if="aiResult?.content" label="Content">
                         <UTextarea
                             :model-value="aiResult.content"
                             :rows="12"
@@ -1328,10 +1329,7 @@ onMounted(async () => {
                         />
                     </UFormField>
 
-                    <UFormField
-                        v-if="aiResult?.tags?.length"
-                        label="Tags"
-                    >
+                    <UFormField v-if="aiResult?.tags?.length" label="Tags">
                         <UInput
                             :model-value="aiResult.tags.join(', ')"
                             readonly
@@ -1407,11 +1405,7 @@ onMounted(async () => {
                     @submit="searchRecommendedImages(1)"
                 >
                     <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
-                        <UFormField
-                            name="query"
-                            label="Keyword"
-                            required
-                        >
+                        <UFormField name="query" label="Keyword" required>
                             <UInput
                                 v-model="recommendedImageSearchState.query"
                                 placeholder="Contoh: modern office, laravel coding, blog cover"
@@ -1423,12 +1417,11 @@ onMounted(async () => {
                             />
                         </UFormField>
 
-                        <UFormField
-                            name="orientation"
-                            label="Orientation"
-                        >
+                        <UFormField name="orientation" label="Orientation">
                             <USelect
-                                v-model="recommendedImageSearchState.orientation"
+                                v-model="
+                                    recommendedImageSearchState.orientation
+                                "
                                 :items="recommendedImageOrientationOptions"
                                 :disabled="
                                     isSearchingRecommendedImages ||
@@ -1439,7 +1432,9 @@ onMounted(async () => {
                         </UFormField>
                     </div>
 
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
                         <p class="text-sm text-muted">
                             {{ recommendedImagesPaginationSummary }}
                         </p>
@@ -1483,7 +1478,9 @@ onMounted(async () => {
                             loading="lazy"
                         />
 
-                        <div class="absolute inset-x-0 bottom-0 space-y-3 bg-linear-to-t from-black/80 via-black/35 to-transparent p-4 opacity-0 transition group-hover:opacity-100">
+                        <div
+                            class="absolute inset-x-0 bottom-0 space-y-3 bg-linear-to-t from-black/80 via-black/35 to-transparent p-4 opacity-0 transition group-hover:opacity-100"
+                        >
                             <div class="space-y-1">
                                 <p class="line-clamp-2 text-sm text-white">
                                     {{
@@ -1511,14 +1508,20 @@ onMounted(async () => {
                                         recommendedImage.id
                                 "
                                 :disabled="isApplyingRecommendedImage"
-                                @click="selectRecommendedImage(recommendedImage)"
+                                @click="
+                                    selectRecommendedImage(recommendedImage)
+                                "
                             />
                         </div>
                     </div>
                 </div>
 
                 <div
-                    v-if="recommendedImagesMeta && recommendedImagesMeta.total > recommendedImagesMeta.per_page"
+                    v-if="
+                        recommendedImagesMeta &&
+                        recommendedImagesMeta.total >
+                            recommendedImagesMeta.per_page
+                    "
                     class="mt-6 flex flex-col gap-3 border-t border-default pt-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                     <p class="text-sm text-muted">
@@ -1544,7 +1547,8 @@ onMounted(async () => {
                     color="neutral"
                     variant="outline"
                     :disabled="
-                        isSearchingRecommendedImages || isApplyingRecommendedImage
+                        isSearchingRecommendedImages ||
+                        isApplyingRecommendedImage
                     "
                     @click="closeRecommendedImagesModal"
                 />
