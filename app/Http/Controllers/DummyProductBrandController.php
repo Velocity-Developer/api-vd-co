@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 
 class DummyProductBrandController extends Controller
 {
@@ -42,7 +43,10 @@ class DummyProductBrandController extends Controller
      */
     public function store(DummyProductBrandRequest $request): DummyProductBrandResource
     {
-        return DummyProductBrandResource::make(DummyProductBrand::create($request->validated())->loadCount('products'));
+        $term = DummyProductBrand::create($this->termAttributes($request));
+        $term->replaceImage($request->file('image_file'));
+
+        return DummyProductBrandResource::make($term->loadCount('products'));
     }
 
     /**
@@ -58,18 +62,29 @@ class DummyProductBrandController extends Controller
      */
     public function update(DummyProductBrandRequest $request, DummyProductBrand $dummyProductBrand): DummyProductBrandResource
     {
-        $dummyProductBrand->update($request->validated());
+        $dummyProductBrand->update($this->termAttributes($request));
+        $dummyProductBrand->replaceImage($request->file('image_file'), $request->boolean('remove_image'));
 
         return DummyProductBrandResource::make($dummyProductBrand->loadCount('products'));
     }
 
     /**
-     * Remove the specified resource from storage; its products are kept.
+     * Remove the specified resource and its picture; its products are kept.
      */
     public function destroy(DummyProductBrand $dummyProductBrand): Response
     {
-        $dummyProductBrand->delete();
+        $dummyProductBrand->deleteWithImage();
 
         return response()->noContent();
+    }
+
+    /**
+     * Validated columns without the upload-only fields.
+     *
+     * @return array<string, mixed>
+     */
+    private function termAttributes(DummyProductBrandRequest $request): array
+    {
+        return Arr::except($request->validated(), ['image_file', 'remove_image']);
     }
 }

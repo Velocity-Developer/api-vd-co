@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 
 class DummyProductCategoryController extends Controller
 {
@@ -42,7 +43,10 @@ class DummyProductCategoryController extends Controller
      */
     public function store(DummyProductCategoryRequest $request): DummyProductCategoryResource
     {
-        return DummyProductCategoryResource::make(DummyProductCategory::create($request->validated())->loadCount('products'));
+        $term = DummyProductCategory::create($this->termAttributes($request));
+        $term->replaceImage($request->file('image_file'));
+
+        return DummyProductCategoryResource::make($term->loadCount('products'));
     }
 
     /**
@@ -58,18 +62,29 @@ class DummyProductCategoryController extends Controller
      */
     public function update(DummyProductCategoryRequest $request, DummyProductCategory $dummyProductCategory): DummyProductCategoryResource
     {
-        $dummyProductCategory->update($request->validated());
+        $dummyProductCategory->update($this->termAttributes($request));
+        $dummyProductCategory->replaceImage($request->file('image_file'), $request->boolean('remove_image'));
 
         return DummyProductCategoryResource::make($dummyProductCategory->loadCount('products'));
     }
 
     /**
-     * Remove the specified resource from storage; its products are kept.
+     * Remove the specified resource and its picture; its products are kept.
      */
     public function destroy(DummyProductCategory $dummyProductCategory): Response
     {
-        $dummyProductCategory->delete();
+        $dummyProductCategory->deleteWithImage();
 
         return response()->noContent();
+    }
+
+    /**
+     * Validated columns without the upload-only fields.
+     *
+     * @return array<string, mixed>
+     */
+    private function termAttributes(DummyProductCategoryRequest $request): array
+    {
+        return Arr::except($request->validated(), ['image_file', 'remove_image']);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicImage;
 use Database\Factories\DummyProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,13 +10,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class DummyProduct extends Model
 {
     /** @use HasFactory<DummyProductFactory> */
-    use HasFactory;
+    use HasFactory, HasPublicImage;
 
     protected $guarded = [];
 
@@ -45,20 +44,9 @@ class DummyProduct extends Model
         return $this->hasMany(DummyProductImage::class)->orderBy('sort_order')->orderBy('id');
     }
 
-    /**
-     * Whether the image points at a file on the public disk rather than an external URL.
-     */
-    public static function isStoredImage(?string $image): bool
+    protected static function imageDirectory(): string
     {
-        return filled($image) && ! Str::startsWith($image, ['http://', 'https://', '//']);
-    }
-
-    /**
-     * Store an uploaded picture and return its path on the public disk.
-     */
-    public static function storeImage(UploadedFile $file): string
-    {
-        return $file->store('dummy-products/'.now()->format('Y/m'), 'public');
+        return 'dummy-products';
     }
 
     /**
@@ -66,16 +54,6 @@ class DummyProduct extends Model
      */
     public static function storeGalleryImage(UploadedFile $file): string
     {
-        return $file->store('dummy-products/gallery/'.now()->format('Y/m'), 'public');
-    }
-
-    /**
-     * Delete a stored picture file, leaving external URLs alone.
-     */
-    public static function deleteStoredImage(?string $image): void
-    {
-        if (static::isStoredImage($image)) {
-            Storage::disk('public')->delete($image);
-        }
+        return $file->store(static::imageDirectory().'/gallery/'.now()->format('Y/m'), 'public');
     }
 }

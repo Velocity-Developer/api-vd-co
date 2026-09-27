@@ -6,6 +6,7 @@ use App\Http\Requests\Concerns\RespondsWithJsonValidationErrors;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\File;
 
 class DummyProductCategoryRequest extends FormRequest
 {
@@ -36,6 +37,11 @@ class DummyProductCategoryRequest extends FormRequest
                 Rule::unique('dummy_product_categories', 'slug')->ignore($this->route('dummy_product_category')),
             ],
             'description' => ['nullable', 'string', 'max:2000'],
+            'image_file' => [
+                'nullable',
+                File::image()->types(DummyProductRequest::IMAGE_TYPES)->max(DummyProductRequest::MAX_IMAGE_SIZE_KB),
+            ],
+            'remove_image' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -51,6 +57,9 @@ class DummyProductCategoryRequest extends FormRequest
             'slug.required' => 'Slug wajib diisi.',
             'slug.unique' => 'Slug sudah dipakai kategori lain.',
             'slug.alpha_dash' => 'Slug hanya boleh huruf, angka, tanda hubung, dan garis bawah.',
+            'image_file.image' => 'File harus berupa gambar.',
+            'image_file.mimes' => 'Gambar harus berformat JPG, PNG, WEBP, GIF, atau AVIF.',
+            'image_file.max' => 'Ukuran gambar maksimal 5 MB.',
         ];
     }
 }

@@ -337,3 +337,55 @@ test('product gallery is limited, validated and cannot remove pictures of other 
         ->and($otherImage->fresh())->not->toBeNull()
         ->and(Storage::disk('public')->allFiles())->toBe([]);
 });
+
+test('brand and category pictures are uploaded, replaced, removed and deleted with the record', function (string $endpoint, string $model, string $directory) {
+    Storage::fake('public');
+    $this->actingAs(User::factory()->create());
+
+    $firstImage = $this->post($endpoint, [
+        'name' => 'Nama',
+        'slug' => 'nama',
+        'image_file' => UploadedFile::fake()->image('logo.png', 400, 400),
+    ])
+        ->assertCreated()
+        ->json('data.image');
+
+    expect($firstImage)->toStartWith($directory.'/'.now()->format('Y/m').'/');
+    Storage::disk('public')->assertExists($firstImage);
+
+    $term = $model::where('slug', 'nama')->firstOrFail();
+    $fields = ['_method' => 'PATCH', 'name' => 'Nama', 'slug' => 'nama'];
+
+    $this->post("{$endpoint}/{$term->id}", $fields)
+        ->assertOk()
+        ->assertJsonPath('data.image', $firstImage)
+        ->assertJsonPath('data.image_url', Storage::disk('public')->url($firstImage));
+
+    $secondImage = $this->post("{$endpoint}/{$term->id}", [...$fields, 'image_file' => UploadedFile::fake()->image('baru.webp')])
+        ->assertOk()
+        ->json('data.image');
+
+    Storage::disk('public')->assertMissing($firstImage);
+    Storage::disk('public')->assertExists($secondImage);
+
+    $this->post("{$endpoint}/{$term->id}", [...$fields, 'remove_image' => '1'])
+        ->assertOk()
+        ->assertJsonPath('data.image', null)
+        ->assertJsonPath('data.image_url', null);
+
+    Storage::disk('public')->assertMissing($secondImage);
+
+    $thirdImage = $this->post("{$endpoint}/{$term->id}", [...$fields, 'image_file' => UploadedFile::fake()->image('lagi.jpg')])
+        ->json('data.image');
+
+    $this->deleteJson("{$endpoint}/{$term->id}")->assertNoContent();
+
+    Storage::disk('public')->assertMissing($thirdImage);
+
+    $this->post($endpoint, ['name' => 'Svg', 'slug' => 'svg', 'image_file' => UploadedFile::fake()->create('logo.svg', 1, 'image/svg+xml')])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['image_file']);
+})->with([
+    'brands' => ['/ajax/dummy-product-brands', DummyProductBrand::class, 'dummy-product-brands'],
+    'categories' => ['/ajax/dummy-product-categories', DummyProductCategory::class, 'dummy-product-categories'],
+]);

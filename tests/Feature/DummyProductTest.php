@@ -11,8 +11,8 @@ test('dummy product tables have the expected columns', function () {
         'id', 'title', 'description', 'price', 'price_discount', 'rating', 'stock',
         'weight', 'sku', 'image', 'dummy_product_brand_id', 'created_at', 'updated_at',
     ]))->toBeTrue()
-        ->and(Schema::hasColumns('dummy_product_brands', ['id', 'name', 'slug', 'description']))->toBeTrue()
-        ->and(Schema::hasColumns('dummy_product_categories', ['id', 'name', 'slug', 'description']))->toBeTrue()
+        ->and(Schema::hasColumns('dummy_product_brands', ['id', 'name', 'slug', 'description', 'image']))->toBeTrue()
+        ->and(Schema::hasColumns('dummy_product_categories', ['id', 'name', 'slug', 'description', 'image']))->toBeTrue()
         ->and(Schema::hasColumns('dummy_product_dummy_product_category', [
             'dummy_product_id', 'dummy_product_category_id', 'created_at', 'updated_at',
         ]))->toBeTrue();

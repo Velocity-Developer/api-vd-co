@@ -24,6 +24,7 @@ class DummyProductCategoryFactory extends Factory
             'name' => $name,
             'slug' => Str::slug($name),
             'description' => fake()->optional()->sentence(),
+            'image' => 'https://picsum.photos/seed/'.Str::slug($name).'/400/400',
         ];
     }
 }

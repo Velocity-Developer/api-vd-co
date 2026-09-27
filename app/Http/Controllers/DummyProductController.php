@@ -30,7 +30,7 @@ class DummyProductController extends Controller
 
         return DummyProductResource::collection(
             DummyProduct::query()
-                ->with(['brand:id,name,slug', 'categories:id,name,slug', 'images'])
+                ->with(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images'])
                 ->when($search !== '', function (Builder $query) use ($search): void {
                     $query->where(function (Builder $query) use ($search): void {
                         $query->where('title', 'like', "%{$search}%")
@@ -159,6 +159,6 @@ class DummyProductController extends Controller
 
     private function loadRelations(DummyProduct $product): DummyProduct
     {
-        return $product->load(['brand:id,name,slug', 'categories:id,name,slug', 'images']);
+        return $product->load(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images']);
     }
 }

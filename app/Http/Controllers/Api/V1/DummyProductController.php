@@ -31,7 +31,7 @@ class DummyProductController extends Controller
         $search = trim($validated['search'] ?? '');
 
         $products = DummyProduct::query()
-            ->with(['brand:id,name,slug', 'categories:id,name,slug', 'images'])
+            ->with(['brand:id,name,slug,image', 'categories:id,name,slug,image', 'images'])
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")

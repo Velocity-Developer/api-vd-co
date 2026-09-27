@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\DummyProductCategory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +20,8 @@ class DummyProductCategoryResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'description' => $this->description,
+            'image' => $this->image,
+            'image_url' => DummyProductCategory::publicImageUrl($this->image),
             'products_count' => $this->whenCounted('products'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

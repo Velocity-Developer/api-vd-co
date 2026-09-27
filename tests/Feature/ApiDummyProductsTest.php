@@ -16,8 +16,8 @@ test('v1 dummy product APIs require a valid signature header', function (string 
 })->with(['/api/v1/dummy-products', '/api/v1/dummy-product-brands', '/api/v1/dummy-product-categories']);
 
 test('v1 dummy products API lists products newest first with brand, categories and gallery', function () {
-    $brand = DummyProductBrand::factory()->create(['name' => 'Nusantara', 'slug' => 'nusantara']);
-    $category = DummyProductCategory::factory()->create(['name' => 'Kaos', 'slug' => 'kaos']);
+    $brand = DummyProductBrand::factory()->create(['name' => 'Nusantara', 'slug' => 'nusantara', 'image' => 'dummy-product-brands/2026/09/logo.png']);
+    $category = DummyProductCategory::factory()->create(['name' => 'Kaos', 'slug' => 'kaos', 'image' => 'https://picsum.photos/seed/kaos/400/400']);
     $older = DummyProduct::factory()->create(['created_at' => now()->subDay()]);
     $newer = DummyProduct::factory()->for($brand, 'brand')->create([
         'title' => 'Kaos Polos',
@@ -39,7 +39,9 @@ test('v1 dummy products API lists products newest first with brand, categories a
         ->assertJsonPath('data.0.price_discount', '120000.00')
         ->assertJsonPath('data.0.image_url', asset('storage/dummy-products/2026/09/kaos.jpg'))
         ->assertJsonPath('data.0.brand.slug', 'nusantara')
+        ->assertJsonPath('data.0.brand.image_url', asset('storage/dummy-product-brands/2026/09/logo.png'))
         ->assertJsonPath('data.0.categories.0.slug', 'kaos')
+        ->assertJsonPath('data.0.categories.0.image_url', 'https://picsum.photos/seed/kaos/400/400')
         ->assertJsonPath('data.0.gallery.0.url', 'https://picsum.photos/seed/b/800/800')
         ->assertJsonPath('data.0.gallery.1.url', asset('storage/dummy-products/gallery/2026/09/a.jpg'))
         ->assertJsonPath('data.1.id', $older->id);
@@ -75,7 +77,7 @@ test('v1 dummy products API filters by search, brand slug and category slug', fu
 });
 
 test('v1 dummy product brand and category APIs list terms by name with product counts', function (string $uri, string $model) {
-    $zeta = $model::factory()->create(['name' => 'Zeta', 'slug' => 'zeta']);
+    $zeta = $model::factory()->create(['name' => 'Zeta', 'slug' => 'zeta', 'image' => 'folder/zeta.png']);
     $model::factory()->create(['name' => 'Alfa', 'slug' => 'alfa']);
 
     $products = DummyProduct::factory()->count(2)->create(['dummy_product_brand_id' => null]);
@@ -92,6 +94,7 @@ test('v1 dummy product brand and category APIs list terms by name with product c
         ->assertJsonPath('data.0.slug', 'alfa')
         ->assertJsonPath('data.0.products_count', 0)
         ->assertJsonPath('data.1.slug', 'zeta')
+        ->assertJsonPath('data.1.image_url', asset('storage/folder/zeta.png'))
         ->assertJsonPath('data.1.products_count', 2);
 
     $this->getJson("{$uri}?search=zet", dummyProductApiHeaders())
