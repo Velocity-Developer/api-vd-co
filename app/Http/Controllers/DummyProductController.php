@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DummyProductRequest;
 use App\Http\Resources\DummyProductResource;
 use App\Models\DummyProduct;
+use App\Models\DummyProductImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,7 @@ class DummyProductController extends Controller
 
         return DummyProductResource::collection(
             DummyProduct::query()
-                ->with(['brand:id,name,slug', 'categories:id,name,slug'])
+                ->with(['brand:id,name,slug', 'categories:id,name,slug', 'images'])
                 ->when($search !== '', function (Builder $query) use ($search): void {
                     $query->where(function (Builder $query) use ($search): void {
                         $query->where('title', 'like', "%{$search}%")
@@ -65,6 +66,7 @@ class DummyProductController extends Controller
 
         $product = DummyProduct::create($attributes);
         $product->categories()->sync($request->validated('category_ids') ?? []);
+        $this->syncGallery($request, $product);
 
         return DummyProductResource::make($this->loadRelations($product))
             ->response()
@@ -103,6 +105,8 @@ class DummyProductController extends Controller
             $dummyProduct->categories()->sync($request->validated('category_ids') ?? []);
         }
 
+        $this->syncGallery($request, $dummyProduct);
+
         return DummyProductResource::make($this->loadRelations($dummyProduct));
     }
 
@@ -111,8 +115,11 @@ class DummyProductController extends Controller
      */
     public function destroy(DummyProduct $dummyProduct): Response
     {
+        $galleryPaths = $dummyProduct->images()->pluck('path');
+
         $dummyProduct->delete();
         DummyProduct::deleteStoredImage($dummyProduct->image);
+        $galleryPaths->each(fn (string $path) => DummyProduct::deleteStoredImage($path));
 
         return response()->noContent();
     }
@@ -124,11 +131,34 @@ class DummyProductController extends Controller
      */
     private function productAttributes(DummyProductRequest $request): array
     {
-        return Arr::except($request->validated(), ['category_ids', 'image_file', 'remove_image']);
+        return Arr::except($request->validated(), ['category_ids', 'image_file', 'remove_image', 'gallery_files', 'gallery_remove_ids']);
+    }
+
+    /**
+     * Remove the requested gallery pictures, then append the uploaded ones after the last.
+     */
+    private function syncGallery(DummyProductRequest $request, DummyProduct $product): void
+    {
+        $removeIds = $request->validated('gallery_remove_ids') ?? [];
+
+        if ($removeIds !== []) {
+            $removed = $product->images()->whereKey($removeIds)->get();
+            $product->images()->whereKey($removeIds)->delete();
+            $removed->each(fn (DummyProductImage $image) => DummyProduct::deleteStoredImage($image->path));
+        }
+
+        $nextOrder = (int) $product->images()->max('sort_order') + 1;
+
+        foreach ($request->file('gallery_files', []) as $file) {
+            $product->images()->create([
+                'path' => DummyProduct::storeGalleryImage($file),
+                'sort_order' => $nextOrder++,
+            ]);
+        }
     }
 
     private function loadRelations(DummyProduct $product): DummyProduct
     {
-        return $product->load(['brand:id,name,slug', 'categories:id,name,slug']);
+        return $product->load(['brand:id,name,slug', 'categories:id,name,slug', 'images']);
     }
 }

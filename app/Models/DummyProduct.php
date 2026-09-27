@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -39,6 +40,11 @@ class DummyProduct extends Model
         return $this->belongsToMany(DummyProductCategory::class)->withTimestamps();
     }
 
+    public function images(): HasMany
+    {
+        return $this->hasMany(DummyProductImage::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     /**
      * Whether the image points at a file on the public disk rather than an external URL.
      */
@@ -53,6 +59,14 @@ class DummyProduct extends Model
     public static function storeImage(UploadedFile $file): string
     {
         return $file->store('dummy-products/'.now()->format('Y/m'), 'public');
+    }
+
+    /**
+     * Store an uploaded gallery picture and return its path on the public disk.
+     */
+    public static function storeGalleryImage(UploadedFile $file): string
+    {
+        return $file->store('dummy-products/gallery/'.now()->format('Y/m'), 'public');
     }
 
     /**

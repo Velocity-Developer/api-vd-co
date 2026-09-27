@@ -13,6 +13,13 @@ type Term = {
     slug: string;
 };
 
+type GalleryImage = {
+    id: number;
+    path: string;
+    url: string;
+    sort_order: number;
+};
+
 type DummyProduct = {
     id: number;
     title: string;
@@ -25,6 +32,7 @@ type DummyProduct = {
     sku: string;
     image: string | null;
     image_url: string | null;
+    gallery?: GalleryImage[];
     dummy_product_brand_id: number | null;
     brand?: Term | null;
     categories?: Term[];
@@ -56,6 +64,8 @@ type ProductFormState = {
     weight: NumericInput;
     imageFile: File | null;
     removeImage: boolean;
+    galleryFiles: File[];
+    galleryRemoveIds: number[];
     description: string;
 };
 
@@ -100,6 +110,8 @@ const emptyForm = (): ProductFormState => ({
     weight: '',
     imageFile: null,
     removeImage: false,
+    galleryFiles: [],
+    galleryRemoveIds: [],
     description: '',
 });
 
@@ -130,6 +142,17 @@ const isReplacingImage = ref(false);
 
 const maxImageSizeMb = 5;
 const imageAccept = '.jpg,.jpeg,.png,.webp,.gif,.avif';
+const maxGalleryImages = 20;
+
+/** Gallery pictures already saved on the product being edited. */
+const currentGallery = ref<GalleryImage[]>([]);
+
+const galleryCount = computed(
+    () =>
+        currentGallery.value.length -
+        state.galleryRemoveIds.length +
+        state.galleryFiles.length,
+);
 
 const isEditing = computed(() => editingProductId.value !== null);
 
@@ -312,6 +335,22 @@ const validate = (formState: Partial<ProductFormState>): FormError[] => {
         });
     }
 
+    const oversizedGalleryFile = state.galleryFiles.find(
+        (file) => file.size > maxImageSizeMb * 1024 * 1024,
+    );
+
+    if (oversizedGalleryFile) {
+        errors.push({
+            name: 'gallery_files',
+            message: `"${oversizedGalleryFile.name}" lebih dari ${maxImageSizeMb} MB.`,
+        });
+    } else if (galleryCount.value > maxGalleryImages) {
+        errors.push({
+            name: 'gallery_files',
+            message: `Galeri maksimal ${maxGalleryImages} gambar.`,
+        });
+    }
+
     if (price !== null && priceDiscount !== null && priceDiscount > price) {
         errors.push({
             name: 'price_discount',
@@ -333,6 +372,13 @@ const resetForm = (): void => {
     serverErrors.value = {};
     currentImageUrl.value = null;
     isReplacingImage.value = false;
+    currentGallery.value = [];
+};
+
+const toggleGalleryRemoval = (image: GalleryImage): void => {
+    state.galleryRemoveIds = state.galleryRemoveIds.includes(image.id)
+        ? state.galleryRemoveIds.filter((id) => id !== image.id)
+        : [...state.galleryRemoveIds, image.id];
 };
 
 const keepCurrentImage = (): void => {
@@ -364,6 +410,7 @@ const openEditModal = (product: DummyProduct): void => {
         description: product.description ?? '',
     });
     currentImageUrl.value = product.image_url;
+    currentGallery.value = [...(product.gallery ?? [])];
     editingProductId.value = product.id;
     isModalOpen.value = true;
 };
@@ -415,6 +462,13 @@ const buildFormData = (): FormData => {
         formData.append('remove_image', '1');
     }
 
+    state.galleryFiles.forEach((file) =>
+        formData.append('gallery_files[]', file),
+    );
+    state.galleryRemoveIds.forEach((id) =>
+        formData.append('gallery_remove_ids[]', String(id)),
+    );
+
     return formData;
 };
 
@@ -429,7 +483,12 @@ const handleValidationErrors = (error: unknown): void => {
 
     serverErrors.value = Object.fromEntries(
         Object.entries(response.errors ?? {}).map(([name, messages]) => [
-            name.startsWith('category_ids') ? 'category_ids' : name,
+            name
+                .replace(
+                    /^(category_ids|gallery_files|gallery_remove_ids)\..*$/,
+                    '$1',
+                )
+                .replace('gallery_remove_ids', 'gallery_files'),
             messages[0] ?? 'Isian tidak valid.',
         ]),
     );
@@ -648,6 +707,10 @@ onMounted(() => {
                             </p>
                             <p class="truncate text-xs text-muted">
                                 {{ row.original.sku }}
+                                <template v-if="row.original.gallery?.length">
+                                    · {{ row.original.gallery.length }} foto
+                                    galeri
+                                </template>
                             </p>
                         </div>
                     </div>
@@ -1042,6 +1105,92 @@ onMounted(() => {
                                 @click="keepCurrentImage"
                             />
                         </template>
+                    </UFormField>
+
+                    <UFormField
+                        name="gallery_files"
+                        label="Galeri"
+                        :hint="`${galleryCount}/${maxGalleryImages} gambar`"
+                        :help="`Bisa pilih banyak gambar sekaligus. JPG, PNG, WEBP, GIF, atau AVIF, maksimal ${maxImageSizeMb} MB per gambar.`"
+                        :error="fieldError('gallery_files')"
+                        class="content-start sm:col-span-2"
+                    >
+                        <div
+                            v-if="currentGallery.length"
+                            class="mb-3 grid grid-cols-4 gap-2 sm:grid-cols-6"
+                        >
+                            <div
+                                v-for="image in currentGallery"
+                                :key="image.id"
+                                class="group relative aspect-square overflow-hidden rounded-md border border-default bg-elevated"
+                            >
+                                <img
+                                    :src="image.url"
+                                    alt=""
+                                    loading="lazy"
+                                    class="size-full object-cover transition-opacity"
+                                    :class="{
+                                        'opacity-30':
+                                            state.galleryRemoveIds.includes(
+                                                image.id,
+                                            ),
+                                    }"
+                                />
+                                <span
+                                    v-if="
+                                        state.galleryRemoveIds.includes(
+                                            image.id,
+                                        )
+                                    "
+                                    class="absolute inset-x-0 bottom-1 text-center text-xs font-medium text-error"
+                                >
+                                    Dihapus
+                                </span>
+                                <UButton
+                                    :icon="
+                                        state.galleryRemoveIds.includes(
+                                            image.id,
+                                        )
+                                            ? 'i-lucide-undo-2'
+                                            : 'i-lucide-x'
+                                    "
+                                    :color="
+                                        state.galleryRemoveIds.includes(
+                                            image.id,
+                                        )
+                                            ? 'neutral'
+                                            : 'error'
+                                    "
+                                    variant="solid"
+                                    size="xs"
+                                    class="absolute top-1 right-1"
+                                    :aria-label="
+                                        state.galleryRemoveIds.includes(
+                                            image.id,
+                                        )
+                                            ? 'Batalkan hapus gambar galeri'
+                                            : 'Hapus gambar galeri'
+                                    "
+                                    :disabled="isSaving"
+                                    @click="toggleGalleryRemoval(image)"
+                                />
+                            </div>
+                        </div>
+
+                        <UFileUpload
+                            v-model="state.galleryFiles"
+                            multiple
+                            :accept="imageAccept"
+                            icon="i-lucide-images"
+                            label="Tambah gambar galeri"
+                            description="Tarik beberapa gambar ke sini atau klik untuk memilih"
+                            layout="grid"
+                            :ui="{
+                                files: 'grid w-full grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-6',
+                            }"
+                            :disabled="isSaving"
+                            class="w-full"
+                        />
                     </UFormField>
 
                     <UFormField

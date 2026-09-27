@@ -28,6 +28,12 @@ class DummyProductResource extends JsonResource
             'sku' => $this->sku,
             'image' => $this->image,
             'image_url' => $this->imageUrl(),
+            'gallery' => $this->whenLoaded('images', fn () => $this->images->map(fn ($image) => [
+                'id' => $image->id,
+                'path' => $image->path,
+                'url' => $this->urlFor($image->path),
+                'sort_order' => $image->sort_order,
+            ])),
             'dummy_product_brand_id' => $this->dummy_product_brand_id,
             'brand' => $this->whenLoaded('brand', fn () => $this->brand?->only(['id', 'name', 'slug'])),
             'categories' => $this->whenLoaded('categories', fn () => $this->categories->map->only(['id', 'name', 'slug'])),
@@ -41,12 +47,11 @@ class DummyProductResource extends JsonResource
      */
     private function imageUrl(): ?string
     {
-        if (blank($this->image)) {
-            return null;
-        }
+        return blank($this->image) ? null : $this->urlFor($this->image);
+    }
 
-        return DummyProduct::isStoredImage($this->image)
-            ? Storage::disk('public')->url($this->image)
-            : $this->image;
+    private function urlFor(string $path): string
+    {
+        return DummyProduct::isStoredImage($path) ? Storage::disk('public')->url($path) : $path;
     }
 }

@@ -77,5 +77,6 @@ test('dummy product seeder creates brands, categories and products once', functi
         ->and(DummyProductCategory::count())->toBe(6)
         ->and(DummyProduct::count())->toBe(30)
         ->and(DummyProduct::whereNull('dummy_product_brand_id')->count())->toBe(0)
-        ->and(DummyProduct::doesntHave('categories')->count())->toBe(0);
+        ->and(DummyProduct::doesntHave('categories')->count())->toBe(0)
+        ->and(DummyProduct::doesntHave('images')->count())->toBe(0);
 });

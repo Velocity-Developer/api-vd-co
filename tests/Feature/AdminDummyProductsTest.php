@@ -3,6 +3,7 @@
 use App\Models\DummyProduct;
 use App\Models\DummyProductBrand;
 use App\Models\DummyProductCategory;
+use App\Models\DummyProductImage;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -250,5 +251,89 @@ test('product picture uploads must be small images', function () {
     }
 
     expect(DummyProduct::count())->toBe(0)
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+test('product gallery pictures can be added, removed and are deleted with the product', function () {
+    Storage::fake('public');
+    $this->actingAs(User::factory()->create());
+    $fields = ['title' => 'Tas Kulit', 'price' => 750000, 'rating' => 5, 'stock' => 4, 'sku' => 'TK-001'];
+
+    $gallery = $this->post('/ajax/dummy-products', [
+        ...$fields,
+        'gallery_files' => [
+            UploadedFile::fake()->image('depan.jpg'),
+            UploadedFile::fake()->image('samping.png'),
+        ],
+    ])
+        ->assertCreated()
+        ->assertJsonCount(2, 'data.gallery')
+        ->json('data.gallery');
+
+    expect($gallery[0]['path'])->toStartWith('dummy-products/gallery/'.now()->format('Y/m').'/')
+        ->and($gallery[0]['url'])->toBe(Storage::disk('public')->url($gallery[0]['path']))
+        ->and(collect($gallery)->pluck('sort_order')->all())->toBe([1, 2]);
+    Storage::disk('public')->assertExists([$gallery[0]['path'], $gallery[1]['path']]);
+
+    $product = DummyProduct::where('sku', 'TK-001')->firstOrFail();
+
+    $updated = $this->post("/ajax/dummy-products/{$product->id}", [
+        '_method' => 'PATCH',
+        ...$fields,
+        'gallery_remove_ids' => [$gallery[0]['id']],
+        'gallery_files' => [UploadedFile::fake()->image('belakang.webp')],
+    ])
+        ->assertOk()
+        ->assertJsonCount(2, 'data.gallery')
+        ->json('data.gallery');
+
+    expect($updated[0]['id'])->toBe($gallery[1]['id'])
+        ->and($updated[1]['sort_order'])->toBe(3);
+    Storage::disk('public')->assertMissing($gallery[0]['path']);
+
+    $this->post("/ajax/dummy-products/{$product->id}", ['_method' => 'PATCH', ...$fields])
+        ->assertOk()
+        ->assertJsonCount(2, 'data.gallery');
+
+    $this->deleteJson("/ajax/dummy-products/{$product->id}")->assertNoContent();
+
+    Storage::disk('public')->assertMissing([$updated[0]['path'], $updated[1]['path']]);
+    expect(DummyProductImage::count())->toBe(0);
+});
+
+test('product gallery is limited, validated and cannot remove pictures of other products', function () {
+    Storage::fake('public');
+    $this->actingAs(User::factory()->create());
+    $fields = ['title' => 'Jam', 'price' => 100000, 'rating' => 0, 'stock' => 1, 'sku' => 'JAM-001'];
+    $product = DummyProduct::factory()->create($fields);
+    DummyProductImage::factory()->count(19)->for($product, 'product')->create();
+    $otherImage = DummyProductImage::factory()->create();
+
+    $this->post("/ajax/dummy-products/{$product->id}", [
+        '_method' => 'PATCH',
+        ...$fields,
+        'gallery_files' => [UploadedFile::fake()->image('a.jpg'), UploadedFile::fake()->image('b.jpg')],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['gallery_files']);
+
+    $this->post("/ajax/dummy-products/{$product->id}", [
+        '_method' => 'PATCH',
+        ...$fields,
+        'gallery_remove_ids' => [$otherImage->id],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['gallery_remove_ids.0']);
+
+    $this->post("/ajax/dummy-products/{$product->id}", [
+        '_method' => 'PATCH',
+        ...$fields,
+        'gallery_files' => [UploadedFile::fake()->create('logo.svg', 1, 'image/svg+xml')],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['gallery_files.0']);
+
+    expect($product->images()->count())->toBe(19)
+        ->and($otherImage->fresh())->not->toBeNull()
         ->and(Storage::disk('public')->allFiles())->toBe([]);
 });
