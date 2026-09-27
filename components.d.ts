@@ -22,6 +22,7 @@ declare module 'vue' {
     UEditorEmojiMenu: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/EditorEmojiMenu.vue')['default']
     UEditorSuggestionMenu: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/EditorSuggestionMenu.vue')['default']
     UEditorToolbar: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/EditorToolbar.vue')['default']
+    UFieldGroup: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/FieldGroup.vue')['default']
     UFileUpload: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/FileUpload.vue')['default']
     UForm: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Form.vue')['default']
     UFormField: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/FormField.vue')['default']
