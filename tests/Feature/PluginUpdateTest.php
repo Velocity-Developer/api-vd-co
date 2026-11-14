@@ -145,6 +145,16 @@ test('paket privat tidak muncul di daftar TGM dan halaman changelog publik', fun
     Project::factory()->create(['slug' => 'velocity-addons', 'type' => 'wp_plugin', 'paket_privat' => false]);
     $tanda = ['signature' => md5(now()->format('dmY'))];
 
+    // server terdaftar: fork ikut dengan versi stabil dan tautan bertanda tangan 24 jam
+    $tgm = collect($this->getJson('/api/v1/tgm-plugins', $tanda + ['source' => 'klien.com'])->assertOk()->json('data'))->keyBy('slug');
+    expect($tgm['bb-plugin']['version'])->toBe('2.11.2.1.1')
+        ->and($tgm['bb-plugin']['source'])->toContain('/api/v1/plugin-package/bb-plugin/2.11.2.1.1?expires=');
+    $this->travel(23)->hours();
+    $this->get($tgm['bb-plugin']['source'])->assertOk()->assertDownload('bb-plugin-2.11.2.1.1.zip');
+    $this->travelBack();
+
+    // IP lain: fork tidak terlihat
+    Server::query()->delete();
     $tgm = $this->getJson('/api/v1/tgm-plugins', $tanda)->assertOk()->json();
     expect(json_encode($tgm))->not->toContain('bb-plugin')->toContain('velocity-addons');
     $this->get('/project/changelog/bb-plugin')->assertNotFound();

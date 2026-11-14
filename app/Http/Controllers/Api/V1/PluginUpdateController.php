@@ -66,8 +66,8 @@ class PluginUpdateController extends Controller
         $project = Project::query()->where('paket_privat', true)->where('slug', $slug)->first();
         $paket = match (true) {
             ! $project instanceof Project => null,
-            $versi === $project->version => $project->package_file,
             $versi === $project->versi_stabil => $project->paket_stabil,
+            $versi === $project->version => $project->package_file,
             default => null,
         };
         if (blank($paket) || ! Storage::disk('local')->exists($paket)) {

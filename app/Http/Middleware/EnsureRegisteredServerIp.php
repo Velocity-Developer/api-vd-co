@@ -55,7 +55,8 @@ class EnsureRegisteredServerIp
         RequestLog::create([
             'route' => $request->getPathInfo(),
             'method' => $request->method(),
-            'request' => $request->input(),
+            // tanda tangan tautan unduh tidak ikut dicatat
+            'request' => $request->except(['signature', 'expires']),
             'status' => $status,
             'website_id' => $websiteId,
             'license_id' => null,
