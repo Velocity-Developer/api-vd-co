@@ -143,7 +143,7 @@ class GithubService
             return null;
         }
 
-        if ($isPrivateRepository) {
+        if ($isPrivateRepository || $project->paket_privat) {
             $packageFile = $this->downloadReleasePackage($project, $release, $repository);
 
             if ($packageFile === null) {
@@ -160,9 +160,10 @@ class GithubService
                 'package_file' => $packageFile,
             ])->save();
 
-            // berkas lama baru dihapus setelah berkas baru tersimpan dan DB menunjuk ke sana
-            if ($oldPackageFile !== $packageFile) {
-                $this->deleteStoredPackageFile($oldPackageFile);
+            // berkas lama baru dihapus setelah berkas baru tersimpan dan DB menunjuk ke sana;
+            // paket privat yang masih dipakai kanal stabil tetap disimpan
+            if ($oldPackageFile !== $packageFile && ! ($project->paket_privat && $oldPackageFile === $project->paket_stabil)) {
+                $this->deleteStoredPackageFile($oldPackageFile, $project->paket_privat);
             }
 
             return $project->fresh();
@@ -330,10 +331,12 @@ class GithubService
 
         $fileName = $asset['file_name']
             ?? Str::slug($project->name).'-'.Str::slug((string) $release['version_tag']).'.zip';
-        $folder = 'project-packages/'.Str::slug($project->name);
+        // paket privat (fork BB dkk.) tidak boleh punya URL publik: simpan di disk lokal, dikirim lewat endpoint berizin
+        $disk = $project->paket_privat ? 'local' : 'public';
+        $folder = ($project->paket_privat ? 'paket-privat/' : 'project-packages/').Str::slug($project->name);
         $path = $folder.'/'.$fileName;
 
-        if (! Storage::disk('public')->put($path, $body)) {
+        if (! Storage::disk($disk)->put($path, $body)) {
             $this->lastSyncError = 'Release package could not be stored.';
 
             return null;
@@ -342,13 +345,13 @@ class GithubService
         return $path;
     }
 
-    private function deleteStoredPackageFile(?string $packageFile): void
+    private function deleteStoredPackageFile(?string $packageFile, bool $privat = false): void
     {
         if (blank($packageFile) || str_starts_with($packageFile, 'http')) {
             return;
         }
 
-        Storage::disk('public')->delete($packageFile);
+        Storage::disk($privat ? 'local' : 'public')->delete($packageFile);
     }
 
     private function normalizeVersionTag(string $versionTag): string

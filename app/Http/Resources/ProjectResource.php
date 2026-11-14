@@ -28,7 +28,11 @@ class ProjectResource extends JsonResource
                 : (bool) $this->plugin_wp_required,
             'github_url' => $this->github_url,
             'package_file' => $this->package_file,
-            'package_file_url' => $this->packageFileUrl(),
+            // paket privat tersimpan di disk lokal: tidak punya URL publik
+            'package_file_url' => $this->paket_privat ? null : $this->packageFileUrl(),
+            'paket_privat' => (bool) $this->paket_privat,
+            'versi_stabil' => $this->when((bool) $this->paket_privat, $this->versi_stabil),
+            'domain_uji' => $this->when((bool) $this->paket_privat, $this->domain_uji ?? []),
             'package_external_url' => $this->package_external_url,
             'icon' => $this->icon,
             'icon_url' => $this->fileUrl($this->icon),

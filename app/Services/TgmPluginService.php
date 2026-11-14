@@ -23,6 +23,7 @@ class TgmPluginService
     public function get(): array
     {
         return Project::query()
+            ->publik()
             ->where('type', 'wp_plugin')
             ->orderBy('name')
             ->get()

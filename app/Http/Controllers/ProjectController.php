@@ -11,6 +11,7 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -70,7 +71,8 @@ class ProjectController extends Controller
         $validated = $request->validate($this->rules());
         $validated['slug'] = Str::slug($validated['slug']);
         $validated = $this->normalizeRequiredVersions($validated);
-        $validated['package_file'] = $this->storePackageFile($request);
+        $validated = $this->normalizePaketPrivat($validated);
+        $validated['package_file'] = ($validated['paket_privat'] ?? false) ? null : $this->storePackageFile($request);
         $validated['icon'] = $this->storeImageFile($request, 'icon');
         $validated['screenshot'] = $this->storeImageFile($request, 'screenshot');
         unset($validated['remove_package_file'], $validated['remove_icon'], $validated['remove_screenshot']);
@@ -125,8 +127,32 @@ class ProjectController extends Controller
         }
 
         $validated = $this->normalizeRequiredVersions($validated, $project);
+        $validated = $this->normalizePaketPrivat($validated, $project);
 
-        if ($request->hasFile('package_file')) {
+        $privatAkhir = (bool) ($validated['paket_privat'] ?? $project->paket_privat);
+        if ($privatAkhir && $request->hasFile('package_file')) {
+            // dicek dari status project di server, bukan hanya dari field request
+            throw ValidationException::withMessages(['package_file' => 'Paket privat tidak bisa diunggah manual; paket diambil dari rilis GitHub.']);
+        }
+        if ($privatAkhir && ($validated['type'] ?? $project->type) !== 'wp_plugin') {
+            throw ValidationException::withMessages(['type' => 'Matikan Paket Privat dulu sebelum mengubah type project.']);
+        }
+
+        if ($privatAkhir && ! $project->paket_privat) {
+            // berubah jadi paket privat: paket publik lama dibuang, paket berikutnya hanya dari sinkron rilis GitHub
+            $this->deletePackageFile($project);
+            $validated['package_file'] = null;
+            $validated['package_external_url'] = null;
+        } elseif (! $privatAkhir && $project->paket_privat) {
+            // kembali publik: berkas privat (terbaru & stabil) dihapus, rilis berikutnya masuk disk publik lewat sinkron/unggah
+            $this->deletePackageFile($project);
+            if (filled($project->paket_stabil) && $project->paket_stabil !== $project->package_file) {
+                Storage::disk('local')->delete($project->paket_stabil);
+            }
+            $validated['package_file'] = $request->hasFile('package_file') ? $this->storePackageFile($request) : null;
+            $project->forceFill(['versi_stabil' => null, 'paket_stabil' => null]);
+            $validated['domain_uji'] = null;
+        } elseif ($request->hasFile('package_file')) {
             $this->deletePackageFile($project);
             $validated['package_file'] = $this->storePackageFile($request);
         } elseif ($shouldRemovePackageFile) {
@@ -208,6 +234,9 @@ class ProjectController extends Controller
             'remove_icon' => ['nullable', 'boolean'],
             'remove_screenshot' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string'],
+            'paket_privat' => ['nullable', 'boolean'],
+            // satu domain per baris / dipisah koma
+            'domain_uji' => ['nullable', 'string', 'max:5000'],
             'type' => array_values(array_filter([
                 $isUpdate ? 'sometimes' : null,
                 'required',
@@ -218,6 +247,7 @@ class ProjectController extends Controller
                 'file',
                 'mimes:zip',
                 'max:51200',
+                'prohibited_if_accepted:paket_privat',
             ])),
             'parent_id' => [
                 'nullable',
@@ -293,7 +323,52 @@ class ProjectController extends Controller
             return;
         }
 
-        Storage::disk('public')->delete($project->package_file);
+        Storage::disk($project->paket_privat ? 'local' : 'public')->delete($project->package_file);
+    }
+
+    /**
+     * Paket privat: tanpa unggahan manual/URL luar (hanya rilis GitHub), wajib URL GitHub; domain uji jadi daftar.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function normalizePaketPrivat(array $validated, ?Project $project = null): array
+    {
+        if (array_key_exists('domain_uji', $validated)) {
+            $domain = preg_split('/[\s,]+/', (string) $validated['domain_uji'], -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $validated['domain_uji'] = array_values(array_unique(array_filter(array_map([Project::class, 'rapikanDomain'], $domain))));
+        }
+        if (! ($validated['paket_privat'] ?? $project?->paket_privat ?? false)) {
+            return $validated;
+        }
+        $github = array_key_exists('github_url', $validated) ? $validated['github_url'] : $project?->github_url;
+        if (blank($github)) {
+            throw ValidationException::withMessages(['github_url' => 'Paket privat wajib punya URL GitHub (paket diambil dari rilis GitHub).']);
+        }
+        $validated['package_external_url'] = null;
+
+        return $validated;
+    }
+
+    /**
+     * Naikkan rilis terbaru paket privat ke kanal stabil (semua situs ditawari update ini).
+     */
+    public function stabilkan(Project $project): JsonResponse
+    {
+        if (! $project->paket_privat || blank($project->package_file) || blank($project->version)) {
+            return response()->json(['message' => 'Hanya paket privat yang sudah punya rilis tersinkron yang bisa dinaikkan ke stabil.'], 422);
+        }
+        $lama = $project->paket_stabil;
+        $project->forceFill(['versi_stabil' => $project->version, 'paket_stabil' => $project->package_file])->save();
+        // paket stabil lama dihapus bila sudah tidak dipakai kanal mana pun
+        if (filled($lama) && $lama !== $project->package_file) {
+            Storage::disk('local')->delete($lama);
+        }
+
+        return response()->json([
+            'message' => "Versi {$project->version} dinaikkan ke kanal stabil.",
+            'data' => ProjectResource::make($project->load('parent:id,name'))->resolve(),
+        ]);
     }
 
     private function storeImageFile(Request $request, string $field): ?string

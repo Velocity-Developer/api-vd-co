@@ -24,7 +24,7 @@ class ProjectController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = max(1, min($perPage, 100));
 
-        $query = Project::query()->with('parent:id,name')->latest('id');
+        $query = Project::query()->publik()->with('parent:id,name')->latest('id');
 
         if ($type !== null && $type !== '') {
             $query->where('type', $type);
@@ -48,6 +48,7 @@ class ProjectController extends Controller
     public function show(Request $request, string $slug): JsonResponse
     {
         $project = Project::query()
+            ->publik()
             ->with('parent:id,name')
             ->where('slug', $slug)
             ->first();
@@ -90,6 +91,11 @@ class ProjectController extends Controller
                 'status' => false,
                 'message' => $githubService->lastSyncError() ?? 'Unable to sync GitHub release for project ID '.$project->id.'.',
             ], 422);
+        }
+
+        if ($syncedProject->paket_privat) {
+            // paket privat: jangan bocorkan path berkas / domain uji ke pemanggil webhook
+            return response()->json(['status' => true, 'message' => 'Success', 'data' => ['slug' => $syncedProject->slug, 'version' => $syncedProject->version]]);
         }
 
         return $this->projectResponse($request, $syncedProject->load('parent:id,name'));
@@ -306,7 +312,7 @@ class ProjectController extends Controller
         $perPage = (int) $request->query('per_page', 15);
         $perPage = max(1, min($perPage, 100));
 
-        $query = Project::query()->with('parent:id,name')->latest('id');
+        $query = Project::query()->publik()->with('parent:id,name')->latest('id');
 
         if ($types !== null) {
             $query->whereIn('type', $types);

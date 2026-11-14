@@ -70,6 +70,7 @@ Route::middleware(['auth'])->prefix('ajax')->group(function () {
     Route::patch('media/{media}', [MediaController::class, 'update']);
     Route::delete('media/{media}', [MediaController::class, 'destroy']);
     Route::post('projects/{project}/sync-github-release', [ProjectController::class, 'syncGithubRelease']);
+    Route::post('projects/{project}/stabilkan', [ProjectController::class, 'stabilkan']);
 
     Route::apiResources([
         'posts' => PostController::class,

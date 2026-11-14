@@ -36,6 +36,9 @@ type Project = {
     package_file: string | null;
     package_file_url: string | null;
     package_external_url: string | null;
+    paket_privat?: boolean;
+    versi_stabil?: string | null;
+    domain_uji?: string[];
     icon: string | null;
     icon_url: string | null;
     screenshot: string | null;
@@ -75,6 +78,8 @@ type ProjectFormState = {
     plugin_wp_required: boolean;
     github_url: string;
     package_external_url: string;
+    paket_privat: boolean;
+    domain_uji: string;
     description: string;
     type: ProjectType;
     parent_id: string;
@@ -189,6 +194,8 @@ const state = reactive<ProjectFormState>({
     plugin_wp_required: false,
     github_url: '',
     package_external_url: '',
+    paket_privat: false,
+    domain_uji: '',
     description: '',
     type: 'project_internal',
     parent_id: noParentValue,
@@ -410,8 +417,16 @@ const validate = (formState: Partial<ProjectFormState>): FormError[] => {
         errors.push({ name: 'type', message: 'Type project wajib dipilih.' });
     }
 
+    if (formState.paket_privat && !formState.github_url?.trim()) {
+        errors.push({
+            name: 'github_url',
+            message: 'Paket privat wajib punya URL GitHub.',
+        });
+    }
+
     if (
         !isEditing.value &&
+        !formState.paket_privat &&
         !packageFile.value &&
         !formState.package_external_url?.trim()
     ) {
@@ -434,6 +449,8 @@ const resetForm = (): void => {
     state.plugin_wp_required = false;
     state.github_url = '';
     state.package_external_url = '';
+    state.paket_privat = false;
+    state.domain_uji = '';
     state.description = '';
     state.type = 'project_internal';
     state.parent_id = noParentValue;
@@ -462,6 +479,8 @@ const openEditModal = (project: Project): void => {
     state.plugin_wp_required = Boolean(project.plugin_wp_required);
     state.github_url = project.github_url ?? '';
     state.package_external_url = project.package_external_url ?? '';
+    state.paket_privat = Boolean(project.paket_privat);
+    state.domain_uji = (project.domain_uji ?? []).join('\n');
     state.description = project.description ?? '';
     state.type = project.type;
     state.parent_id = project.parent_id
@@ -552,8 +571,17 @@ const buildPayload = (): FormData => {
         payload.append('github_url', githubUrl);
     }
 
-    if (packageExternalUrl !== null) {
+    if (packageExternalUrl !== null && !state.paket_privat) {
         payload.append('package_external_url', packageExternalUrl);
+    }
+
+    // selalu dikirim: ganti type dari wp_plugin ikut mematikan paket privat
+    payload.append('paket_privat', state.type === 'wp_plugin' && state.paket_privat ? '1' : '0');
+
+    if (state.type === 'wp_plugin') {
+        if (state.paket_privat) {
+            payload.append('domain_uji', state.domain_uji.trim());
+        }
     }
 
     if (iconFile.value) {
@@ -740,6 +768,38 @@ const syncGithubRelease = async (project: Project): Promise<void> => {
     }
 };
 
+const stabilkanProject = async (project: Project): Promise<void> => {
+    if (
+        !window.confirm(
+            `Naikkan ${project.name} versi ${project.version} ke kanal stabil? Semua situs di server terdaftar akan ditawari update ini.`,
+        )
+    ) {
+        return;
+    }
+
+    syncingProjectId.value = project.id;
+    syncMessage.value = null;
+
+    try {
+        const response = await axios.post<MessageResponse>(
+            `/ajax/projects/${project.id}/stabilkan`,
+        );
+
+        showSyncMessage(response.data.message, 'success');
+        refreshProjects();
+    } catch (error) {
+        const message =
+            error instanceof AxiosError
+                ? ((error.response?.data as Partial<MessageResponse> | undefined)
+                      ?.message ?? 'Gagal menaikkan ke stabil.')
+                : 'Gagal menaikkan ke stabil.';
+
+        showSyncMessage(message, 'error');
+    } finally {
+        syncingProjectId.value = null;
+    }
+};
+
 const submitProject = async (
     _event: FormSubmitEvent<ProjectFormState>,
 ): Promise<void> => {
@@ -810,6 +870,7 @@ watch(
 
         if (typeValue !== 'wp_plugin') {
             state.plugin_wp_required = false;
+            state.paket_privat = false;
         }
     },
 );
@@ -966,6 +1027,9 @@ watch(isChangelogModalOpen, (open) => {
                             variant="subtle"
                             :label="row.original.version || '-'"
                         />
+                        <div v-if="row.original.paket_privat" class="mt-1 text-xs text-muted">
+                            Privat · stabil: {{ row.original.versi_stabil || 'belum ada' }}
+                        </div>
                     </template>
 
                     <template #github_url-cell="{ row }">
@@ -1015,6 +1079,22 @@ watch(isChangelogModalOpen, (open) => {
                                 "
                                 :loading="syncingProjectId === row.original.id"
                                 @click="syncGithubRelease(row.original)"
+                            />
+                            <UButton
+                                v-if="row.original.paket_privat"
+                                icon="i-lucide-shield-check"
+                                color="warning"
+                                variant="ghost"
+                                aria-label="Naikkan ke stabil"
+                                :title="`Naikkan ${row.original.version ?? '-'} ke stabil (sekarang: ${row.original.versi_stabil ?? 'belum ada'})`"
+                                :disabled="
+                                    isLoading ||
+                                    isSaving ||
+                                    !row.original.version ||
+                                    row.original.version === row.original.versi_stabil ||
+                                    syncingProjectId !== null
+                                "
+                                @click="stabilkanProject(row.original)"
                             />
                             <UButton
                                 icon="i-lucide-scroll-text"
@@ -1270,6 +1350,42 @@ watch(isChangelogModalOpen, (open) => {
                                     Wajib plugin WordPress
                                 </span>
                             </div>
+                        </UFormField>
+
+                        <UFormField
+                            v-if="state.type === 'wp_plugin'"
+                            name="paket_privat"
+                            label="Paket Privat"
+                            hint="Fork BB/Themer/UABB"
+                            :error="fieldError('paket_privat')"
+                        >
+                            <div class="flex items-center gap-3 rounded-lg border border-default bg-default px-3 py-2">
+                                <UCheckbox
+                                    v-model="state.paket_privat"
+                                    :disabled="isSaving"
+                                />
+                                <span class="text-sm text-highlighted">
+                                    Zip dari rilis GitHub, disimpan privat, hanya untuk server terdaftar
+                                </span>
+                            </div>
+                        </UFormField>
+
+                        <UFormField
+                            v-if="state.type === 'wp_plugin' && state.paket_privat"
+                            name="domain_uji"
+                            label="Domain Uji"
+                            hint="Satu domain per baris"
+                            description="Domain ini mendapat rilis terbaru (kanal uji); situs lain mendapat versi stabil."
+                            :error="fieldError('domain_uji')"
+                            class="sm:col-span-2"
+                        >
+                            <UTextarea
+                                v-model="state.domain_uji"
+                                :rows="3"
+                                class="w-full"
+                                placeholder="demo.velocitydeveloper.com"
+                                :disabled="isSaving"
+                            />
                         </UFormField>
                     </div>
 

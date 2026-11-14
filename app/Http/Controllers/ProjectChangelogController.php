@@ -108,7 +108,7 @@ class ProjectChangelogController extends Controller
      */
     public function publicChangelogIndex(string $projectSlug): View
     {
-        $project = Project::query()->where('slug', $projectSlug)->with('changelogs')->firstOrFail();
+        $project = Project::query()->publik()->where('slug', $projectSlug)->with('changelogs')->firstOrFail();
 
         return view('projects.changelog', [
             'project' => $project,
