@@ -49,5 +49,9 @@ return [
     'github' => [
         'url' => env('GITHUB_URL', 'https://api.github.com/'),
         'token' => env('GITHUB_ACCESS_TOKEN'),
+        // token fine-grained hanya berlaku untuk satu pemilik repo; token tambahan per pemilik (huruf kecil)
+        'owner_tokens' => [
+            'velocitydeveloper' => env('GITHUB_ACCESS_TOKEN_VELOCITYDEVELOPER'),
+        ],
     ],
 ];

@@ -13,13 +13,23 @@ class GithubService
 {
     protected ?string $token;
 
+    /** @var array<string, string|null> */
+    protected array $ownerTokens = [];
+
     protected string $baseUrl;
 
     protected ?string $lastSyncError = null;
 
+    protected bool $lastSyncUnchanged = false;
+
+    protected bool $lastSyncInaccessible = false;
+
+    protected ?int $lastReleaseStatus = null;
+
     public function __construct()
     {
         $this->token = config('services.github.token');
+        $this->ownerTokens = array_change_key_case((array) config('services.github.owner_tokens', []));
         $this->baseUrl = rtrim((string) config('services.github.url'), '/');
     }
 
@@ -40,6 +50,7 @@ class GithubService
     public function getLatestRelease(string $owner, string $repo): ?array
     {
         $response = $this->githubRequest("repos/{$owner}/{$repo}/releases/latest");
+        $this->lastReleaseStatus = $response->status();
 
         if ($response->failed()) {
             return null;
@@ -68,9 +79,14 @@ class GithubService
         ];
     }
 
-    public function syncGithubProjectRelease(int $projectId): ?Project
+    /**
+     * @param  bool  $skipIfCurrent  true = jangan ubah apa pun bila versi rilis terbaru sudah sama (dipakai cron)
+     */
+    public function syncGithubProjectRelease(int $projectId, bool $skipIfCurrent = false): ?Project
     {
         $this->lastSyncError = null;
+        $this->lastSyncUnchanged = false;
+        $this->lastSyncInaccessible = false;
         $project = Project::query()->find($projectId);
 
         if (! $project instanceof Project) {
@@ -97,6 +113,8 @@ class GithubService
 
         if ($release === null) {
             $this->lastSyncError = 'Latest release not found or GitHub API failed.';
+            // 404 = repo privat tanpa akses token atau belum ada rilis: bukan galat cron
+            $this->lastSyncInaccessible = $this->lastReleaseStatus === 404;
 
             return null;
         }
@@ -108,7 +126,22 @@ class GithubService
         }
 
         $normalizedVersion = $this->normalizeVersionTag($release['version_tag']);
-        $isPrivateRepository = $this->isRepositoryPrivate($repository['owner'], $repository['repo']);
+
+        if ($skipIfCurrent
+            && $project->version === $normalizedVersion
+            && (filled($project->package_file) || filled($project->package_external_url))) {
+            $this->lastSyncUnchanged = true;
+
+            return $project;
+        }
+
+        $isPrivateRepository = $this->repositoryVisibility($repository['owner'], $repository['repo']);
+
+        if ($isPrivateRepository === null) {
+            $this->lastSyncError = 'GitHub repository visibility check failed.';
+
+            return null;
+        }
 
         if ($isPrivateRepository) {
             $packageFile = $this->downloadReleasePackage($project, $release, $repository);
@@ -119,35 +152,74 @@ class GithubService
                 return null;
             }
 
+            $oldPackageFile = $project->package_file;
+
             $project->forceFill([
                 'version' => $normalizedVersion,
                 'package_external_url' => null,
                 'package_file' => $packageFile,
             ])->save();
 
+            // berkas lama baru dihapus setelah berkas baru tersimpan dan DB menunjuk ke sana
+            if ($oldPackageFile !== $packageFile) {
+                $this->deleteStoredPackageFile($oldPackageFile);
+            }
+
             return $project->fresh();
         }
 
+        $oldPackageFile = $project->package_file;
+
+        // installer mendahulukan package_file: kosongkan agar zip rilis baru yang dipakai
         $project->forceFill([
             'version' => $normalizedVersion,
             'package_external_url' => $release['package_download_url'],
+            'package_file' => null,
         ])->save();
+
+        $this->deleteStoredPackageFile($oldPackageFile);
 
         return $project->fresh();
     }
 
     public function isRepositoryPrivate(string $owner, string $repo): bool
     {
-        $response = Http::withHeaders([
-            'Accept' => 'application/vnd.github+json',
-        ])->get("{$this->baseUrl}/repos/{$owner}/{$repo}");
+        return $this->repositoryVisibility($owner, $repo) === true;
+    }
 
-        return $response->status() === 404;
+    /**
+     * Memakai token (bila ada) agar tidak kena batas 60 request/jam GitHub tanpa autentikasi.
+     * 404 = privat / tidak bisa diakses; 200 = baca kolom "private"; galat lain (rate limit dll.) = null.
+     */
+    public function repositoryVisibility(string $owner, string $repo): ?bool
+    {
+        $response = $this->githubRequest("repos/{$owner}/{$repo}");
+
+        if ($response->status() === 404) {
+            return true;
+        }
+
+        if ($response->successful()) {
+            return (bool) $response->json('private', false);
+        }
+
+        return null;
     }
 
     public function lastSyncError(): ?string
     {
         return $this->lastSyncError;
+    }
+
+    /** true bila GitHub menjawab 404 (repo privat tanpa akses token / belum ada rilis) */
+    public function lastSyncInaccessible(): bool
+    {
+        return $this->lastSyncInaccessible;
+    }
+
+    public function lastSyncUnchanged(): bool
+    {
+        return $this->lastSyncUnchanged;
     }
 
     /**
@@ -179,11 +251,29 @@ class GithubService
             'Accept' => 'application/vnd.github+json',
         ])
             ->when(
-                filled($this->token),
-                fn ($request) => $request->withToken($this->token),
+                filled($token = $this->tokenForPath($path)),
+                fn ($request) => $request->withToken($token),
             )
-            ->timeout(600)
+            ->connectTimeout(15)
+            ->timeout(60)
             ->get("{$this->baseUrl}/{$path}");
+    }
+
+    private function tokenForOwner(string $owner): ?string
+    {
+        $ownerToken = $this->ownerTokens[strtolower($owner)] ?? null;
+
+        return filled($ownerToken) ? $ownerToken : $this->token;
+    }
+
+    /** path API berbentuk repos/{owner}/{repo}/... */
+    private function tokenForPath(string $path): ?string
+    {
+        $segments = explode('/', ltrim($path, '/'));
+
+        return ($segments[0] ?? null) === 'repos' && filled($segments[1] ?? null)
+            ? $this->tokenForOwner($segments[1])
+            : $this->token;
     }
 
     private function githubAssetDownloadRequest(int $assetId, array $repository): Response
@@ -191,8 +281,10 @@ class GithubService
         return Http::withHeaders([
             'Accept' => 'application/octet-stream',
             'Content-Type' => null,
-            'Authorization' => "Bearer {$this->token}",
+            'Authorization' => 'Bearer '.$this->tokenForOwner($repository['owner']),
         ])
+            ->connectTimeout(15)
+            ->timeout(600)
             ->get("{$this->baseUrl}/repos/{$repository['owner']}/{$repository['repo']}/releases/assets/{$assetId}");
     }
 
@@ -227,25 +319,36 @@ class GithubService
             return null;
         }
 
-        $this->deleteStoredPackageFile($project);
+        $body = $response->body();
+
+        // jangan simpan halaman galat/HTML sebagai paket
+        if (strlen($body) < 22 || ! str_starts_with($body, "PK\x03\x04")) {
+            $this->lastSyncError = "GitHub asset id {$assetId} is not a valid zip file.";
+
+            return null;
+        }
 
         $fileName = $asset['file_name']
             ?? Str::slug($project->name).'-'.Str::slug((string) $release['version_tag']).'.zip';
         $folder = 'project-packages/'.Str::slug($project->name);
         $path = $folder.'/'.$fileName;
 
-        Storage::disk('public')->put($path, $response->body());
+        if (! Storage::disk('public')->put($path, $body)) {
+            $this->lastSyncError = 'Release package could not be stored.';
+
+            return null;
+        }
 
         return $path;
     }
 
-    private function deleteStoredPackageFile(Project $project): void
+    private function deleteStoredPackageFile(?string $packageFile): void
     {
-        if (blank($project->package_file) || str_starts_with($project->package_file, 'http')) {
+        if (blank($packageFile) || str_starts_with($packageFile, 'http')) {
             return;
         }
 
-        Storage::disk('public')->delete($project->package_file);
+        Storage::disk('public')->delete($packageFile);
     }
 
     private function normalizeVersionTag(string $versionTag): string

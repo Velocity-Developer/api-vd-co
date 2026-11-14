@@ -8,4 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('projects:sync-github')->daily();
+// rilis GitHub baru masuk ApiCo paling lambat ±1 jam tanpa webhook per repo; hasil di storage/logs/sync-github.log
+Schedule::command('projects:sync-github')
+    ->hourlyAt(17)
+    ->withoutOverlapping(120)
+    ->appendOutputTo(storage_path('logs/sync-github.log'));
