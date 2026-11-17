@@ -45,9 +45,23 @@ class ProjectController extends Controller
                 ->when($types, fn ($query) => $query->whereIn('type', $types))
                 ->when($request?->filled('paket'), fn ($query) => $query->where('paket', $request->string('paket')))
                 ->when($request?->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
+                ->when($request?->filled('search'), function ($query) use ($request) {
+                    // ESCAPE eksplisit agar % dan _ dicari apa adanya di MySQL maupun SQLite
+                    $kata = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], trim((string) $request->string('search'))).'%';
+                    $kolom = ['name', 'slug', 'version', 'paket', 'type', 'github_url', 'description'];
+
+                    $query->where(function ($q) use ($kata, $kolom) {
+                        foreach ($kolom as $nama) {
+                            $q->orWhereRaw("{$nama} LIKE ? ESCAPE '!'", [$kata]);
+                        }
+
+                        $q->orWhereHas('parent', fn ($parent) => $parent->whereRaw("name LIKE ? ESCAPE '!'", [$kata]));
+                    });
+                })
                 ->with('parent:id,name')
                 ->latest('id')
-                ->paginate(),
+                ->paginate()
+                ->withQueryString(),
         );
 
         return Inertia::render($page, [
@@ -57,6 +71,7 @@ class ProjectController extends Controller
                 default => 'Projects',
             },
             'projects' => $projects,
+            'filters' => ['search' => (string) $request?->string('search')],
             'parentProjects' => Project::query()
                 ->orderBy('name')
                 ->get(['id', 'name']),

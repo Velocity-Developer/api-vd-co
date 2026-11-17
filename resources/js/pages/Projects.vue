@@ -101,6 +101,7 @@ const props = defineProps<{
     pageTitle: string;
     projects: ProjectsResponse;
     parentProjects: ParentProjectOption[];
+    filters?: { search?: string };
 }>();
 
 defineOptions({
@@ -159,7 +160,8 @@ const projectTypeLabel = (type: ProjectType): string => {
     return projectTypeLabels[type];
 };
 
-const search = ref('');
+const search = ref(props.filters?.search ?? '');
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const selectedPaket = ref('__all__');
 const selectedType = ref('__all__');
 const currentPage = ref(props.projects.meta.current_page);
@@ -201,36 +203,7 @@ const state = reactive<ProjectFormState>({
     parent_id: noParentValue,
 });
 
-const filteredProjects = computed(() => {
-    const query = search.value.trim().toLowerCase();
-
-    return props.projects.data.filter((project) => {
-        if (query === '') {
-            return true;
-        }
-        const searchableContent = [
-            project.name,
-            project.slug,
-            project.version,
-            project.requires,
-            project.requires_php,
-            String(project.plugin_wp_required),
-            project.github_url,
-            project.package_file,
-            project.package_file_url,
-            project.package_external_url,
-            project.description,
-            project.type,
-            projectTypeLabel(project.type),
-            project.parent?.name,
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        return searchableContent.includes(query);
-    });
-});
+const filteredProjects = computed(() => props.projects.data);
 
 const paginationSummary = computed(() => {
     if (props.projects.meta.total === 0) {
@@ -833,6 +806,7 @@ const visitPage = (page: number): void => {
                 page,
                 ...(selectedPaket.value !== '__all__' && { paket: selectedPaket.value }),
                 ...(selectedType.value !== '__all__' && { type: selectedType.value }),
+                ...(search.value.trim() !== '' && { search: search.value.trim() }),
             },
         }),
         {},
@@ -849,6 +823,11 @@ const visitPage = (page: number): void => {
 
 watch([selectedPaket, selectedType], () => {
     visitPage(1);
+});
+
+watch(search, () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => visitPage(1), 350);
 });
 
 watch(
@@ -940,7 +919,6 @@ watch(isChangelogModalOpen, (open) => {
                         v-model="search"
                         icon="i-lucide-search"
                         placeholder="Search projects..."
-                        :disabled="isLoading"
                         class="w-full sm:w-72"
                     />
 

@@ -455,3 +455,30 @@ test('project slug is normalized before saving', function () {
         'slug' => 'slug-campur-spasi-simbol',
     ]);
 });
+
+test('projects search filters across all pages on the server', function () {
+    $user = User::factory()->create();
+
+    // dibuat paling awal: urutan latest('id') menaruhnya di halaman terakhir
+    Project::factory()->create(['name' => 'Beaver Builder Fork', 'slug' => 'bb-plugin-fork', 'type' => 'wp_plugin']);
+    Project::factory()->count(20)->create(['type' => 'project_internal']);
+    Project::factory()->create(['name' => 'Persen 100% Diskon', 'type' => 'project_internal']);
+
+    $this->actingAs($user)
+        ->get(route('projects', ['search' => 'beaver']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('projects.data', 1)
+            ->where('projects.data.0.name', 'Beaver Builder Fork')
+            ->where('filters.search', 'beaver'));
+
+    $this->actingAs($user)
+        ->get(route('projects', ['search' => '100%']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('projects.data', 1)
+            ->where('projects.data.0.name', 'Persen 100% Diskon'));
+
+    $this->actingAs($user)
+        ->get(route('projects', ['search' => '%']))
+        ->assertInertia(fn (Assert $page) => $page->where('projects.meta.total', 1));
+});
